@@ -6,7 +6,7 @@ interface AuthState {
   accessToken: string | null;
   loading: boolean;
   error: string | null;
-  user: { firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null;
+  user: { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null;
 }
 
 const initialState: AuthState = {
@@ -60,7 +60,7 @@ export const fetchProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const res = await axiosInstance.get("/user/profileinfo");
-      return res.data.user as { firstName: string; lastName?: string; email: string; profileImageUrl?: string };
+      return res.data.user as { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string };
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       return rejectWithValue(error.response?.data?.message || "Failed to fetch profile");
@@ -75,7 +75,7 @@ const authSlice = createSlice({
     setAccessToken: (state, action: PayloadAction<string>) => {
       state.accessToken = action.payload;
     },
-    setUser: (state, action: PayloadAction<{ firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null>) => {
+    setUser: (state, action: PayloadAction<{ id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null>) => {
       state.user = action.payload;
     },
     logout: (state) => {

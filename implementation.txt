@@ -1,0 +1,72 @@
+# Project: MessageApp (Transitioned from ImageApp)
+
+## Core Development Standards & Rules (CRITICAL)
+The following rules must be followed for all future development. This ensures architectural consistency, maintainability, and readability across different models and sessions.
+
+1. **SOLID Principles**: Adhere to all SOLID design principles.
+   - **Single Responsibility**: Each class/function should have one job.
+   - **Dependency Inversion**: High-level modules should not depend on low-level modules; both should depend on abstractions.
+
+2. **Repository Architecture**:
+   - **Base Repository Usage**: All new repositories must extend `BaseRepository<T>` and leverage its methods (`create`, `findById`, `findOne`, `find`, `update`, `delete`).
+   - **Interfaces**: Every repository and service must have a corresponding interface in the `interfaces/` folder.
+
+3. **Dependency Injection (InversifyJS)**:
+   - Use InversifyJS for managing dependencies. 
+   - Define new types in `backend/src/config/types.ts`.
+   - Register bindings in `backend/src/config/container.ts`.
+   - Services must use **Constructor Injection**.
+   - Controllers pull services from the `container` using `container.get`.
+
+4. **DTO (Data Transfer Object) Mapping**:
+   - Mapping between Database Models and DTOs must be performed in the **Service Layer**. 
+   - Ensure private fields never leak into DTOs.
+
+5. **Centralized Constants**:
+   - **User Messages**: Retrieve from `backend/src/constants/messages.ts`.
+   - **HTTP Status Codes**: Retrieve from `backend/src/constants/httpStatus.ts`.
+
+6. **Strict Typing**:
+   - **ZERO usage of the `any` type**. If a type error is complex, define the proper interface/type.
+
+7. **No Code Comments**: Do not include comments within the code files.
+
+8. **Structured Planning**: Before implementing any new feature, update the "Active Implementation Plan" section here.
+
+---
+
+## Assignment: Real-time Polling Application with Chat Feature
+
+### Objective
+Develop a real-time polling application integrated with a global chat feature using WebSockets (Socket.IO).
+
+### Roadmap & Stages
+
+#### Stage 1: WebSocket Foundation & Global Chat [/]
+**Scope**: Set up Socket.IO, establish real-time chat, typing indicators, and message persistence.
+- **Status**: [IN PROGRESS]
+- **Instruction**: Once this stage is completed and verified, the user may push changes to GitHub.
+
+#### Stage 2: Real-time Polling System [ ]
+**Scope**: Poll creation, real-time voting, and broadcasting results.
+- **Status**: [PENDING]
+- **Instruction**: Once this stage is completed and verified, the user may push changes to GitHub.
+
+#### Stage 3: UI/UX Refinement & Final Polish [ ]
+**Scope**: Styling, animations, and final synchronization checks.
+- **Status**: [PENDING]
+- **Instruction**: Final stage for the current assignment.
+
+---
+
+## Project History & Current State
+(Transition from ImageApp completed. Rebranded to MessageApp. Legacy code cleaned.)
+
+---
+
+## Active Implementation Plan (Current Stage: 1)
+1. Initialize Socket.IO on backend.
+2. Create Message model, Interface, Repository, and Service.
+3. Register chat-related dependencies in Inversify container.
+4. Integrate Socket.IO client in React `Home.tsx`.
+5. Implement real-time message broadcasting and typing indicator.

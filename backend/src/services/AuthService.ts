@@ -21,7 +21,7 @@ export class UserService implements IUserService {
     const awsRegion = process.env.AWS_REGION;
     const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-    
+
     if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey) {
       throw new Error("AWS configuration environment variables are missing");
     }
@@ -50,15 +50,15 @@ export class UserService implements IUserService {
     await setOTP(`tempUser:${userData.email}`, JSON.stringify(tempUserData), 900);
 
     const otp = generateOTP();
-    await setOTP(`otp:${userData.email}`, otp, 60); 
+    await setOTP(`otp:${userData.email}`, otp, 60);
     await sendOTPEmail(userData.email, otp);
 
     return userData;
   }
 
-  async verifyOTP(email: string, otp: string): Promise<{ 
-    accessToken: string; 
-    refreshToken: string; 
+  async verifyOTP(email: string, otp: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
     user: { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string | undefined };
   }> {
     const storedOtp = await getOTP(`otp:${email}`);
@@ -75,7 +75,7 @@ export class UserService implements IUserService {
     await this._userRepository.createUser(tempUserData as IUser);
 
     await deleteOTP(`otp:${email}`);
-    
+
     const user = await this._userRepository.findByEmail(email);
     if (!user) {
       throw new Error("User creation failed");
@@ -127,6 +127,7 @@ export class UserService implements IUserService {
     const user = await this._userRepository.findById(userId);
     if (!user) throw new Error(Messages.USER_NOT_FOUND);
     const dto: UserDTO = {
+      id: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
@@ -159,6 +160,7 @@ export class UserService implements IUserService {
     const updated = await this._userRepository.updateProfileImageUrl(userId, url);
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
     return {
+      id: updated.id,
       firstName: updated.firstName,
       lastName: updated.lastName,
       email: updated.email,
@@ -172,7 +174,7 @@ export class UserService implements IUserService {
       return { emailExists: false };
     }
     const token = generateResetToken();
-    const ttlSeconds = 15 * 60; 
+    const ttlSeconds = 15 * 60;
     await setOTP(`reset:${token}`, email, ttlSeconds);
     const base = originBaseUrl || process.env.FRONTEND_BASE_URL;
     const link = `${base}/reset-password?token=${token}`;

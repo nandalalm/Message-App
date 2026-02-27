@@ -11,11 +11,15 @@ import authRoutes from "./routes/authRoute";
 import imageRoutes from "./routes/imageRoute";
 import userRoutes from "./routes/userRoute";
 
+import { createServer } from "http";
+import { initSocket } from "./config/socket";
+
 dotenv.config();
 const app = express();
+const httpServer = createServer(app);
 
-app.use(cors({ 
-  origin: process.env.CLIENT_URL, 
+app.use(cors({
+  origin: process.env.CLIENT_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -32,5 +36,8 @@ app.use("/api/images", imageRoutes);
 app.use("/api/user", userRoutes);
 app.use(errorMiddleware);
 
+// Initialize Socket.IO
+initSocket(httpServer);
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

@@ -7,6 +7,10 @@ import { UserRepository } from "../repositories/UserRepository";
 import { UserService } from "../services/AuthService";
 import { ImageRepository } from "../repositories/ImageRepository";
 import { ImageService } from "../services/ImageService";
+import { IMessageRepository } from "../interfaces/Repositories/IMessageRepository";
+import { IMessageService } from "../interfaces/services/IMessageService";
+import { MessageRepository } from "../repositories/messageRepository";
+import { MessageService } from "../services/messageService";
 import { TYPES } from "./types";
 
 export const container = new Container();
@@ -23,4 +27,11 @@ container.bind<IImageRepository>(TYPES.ImageRepository).toConstantValue(new Imag
 container.bind<IImageService>(TYPES.ImageService).toDynamicValue(() => {
   const imageRepo = container.get<IImageRepository>(TYPES.ImageRepository);
   return new ImageService(imageRepo);
+});
+
+container.bind<IMessageRepository>(TYPES.MessageRepository).toConstantValue(new MessageRepository());
+
+container.bind<IMessageService>(TYPES.MessageService).toDynamicValue(() => {
+  const messageRepo = container.get<IMessageRepository>(TYPES.MessageRepository);
+  return new MessageService(messageRepo);
 });
