@@ -13,7 +13,8 @@ export interface PollDTO {
   isActive: boolean;
   allowMultiple: boolean;
   hasVoted: boolean;
-  votedOptionIndices: number[]; // New field to track specific selections
+  votedOptionIndices: number[];
+  voters: { userName: string; optionIndex: number }[]; // For the voter list modal
 }
 
 export interface CreatePollDTO {

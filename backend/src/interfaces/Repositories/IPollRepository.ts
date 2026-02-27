@@ -5,5 +5,5 @@ export interface IPollRepository extends IBaseRepository<IPoll> {
   findActivePolls(): Promise<IPoll[]>;
   getActivePollCount(): Promise<number>;
   getUserActivePollCount(userId: string): Promise<number>;
-  vote(pollId: string, optionIndex: number, userId: string): Promise<IPoll | null>;
+  vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<IPoll | null>;
 }

@@ -33,13 +33,11 @@ export const initSocket = (server: HTTPServer) => {
     });
 
     socket.on("sendMessage", async (data: { senderId: string; senderName: string; content: string }) => {
-      console.log("📨 [Socket] sendMessage received:", data);
       try {
         const savedMessage = await messageService.saveMessage(data);
-        console.log("💾 [Socket] Message saved & broadcasting:", savedMessage.id);
         io.emit("newMessage", savedMessage);
       } catch (error) {
-        console.error("❌ [Socket] Error saving/sending message:", error);
+        console.error("Error saving/sending message:", error);
       }
     });
 
@@ -49,37 +47,30 @@ export const initSocket = (server: HTTPServer) => {
 
     // Poll Events
     socket.on("getActivePolls", async (data: { userId: string }) => {
-      console.log("📊 [Socket] getActivePolls for user:", data.userId);
       try {
         const polls = await pollService.getActivePolls(data.userId);
         socket.emit("activePolls", polls);
       } catch (error) {
-        console.error("❌ [Socket] Error fetching polls:", error);
+        console.error("Error fetching polls:", error);
       }
     });
 
     socket.on("createPoll", async (data: { creatorId: string; creatorName: string; question: string; options: string[]; durationMinutes: number; allowMultiple: boolean }) => {
-      console.log("🆕 [Socket] createPoll received:", data.question);
       try {
         const poll = await pollService.createPoll(data);
-        console.log("💾 [Socket] Poll created & broadcasting:", poll.id);
         io.emit("pollCreated", poll);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error("❌ [Socket] Error creating poll:", errorMessage);
         socket.emit("error", { message: errorMessage });
       }
     });
 
-    socket.on("vote", async (data: { pollId: string; optionIndex: number; userId: string }) => {
-      console.log("🗳️ [Socket] vote received:", data);
+    socket.on("vote", async (data: { pollId: string; optionIndex: number; userId: string; userName: string }) => {
       try {
-        const updatedPoll = await pollService.vote(data.pollId, data.optionIndex, data.userId);
-        console.log("💾 [Socket] Vote updated & broadcasting:", updatedPoll.id);
+        const updatedPoll = await pollService.vote(data.pollId, data.optionIndex, data.userId, data.userName);
         io.emit("voteUpdated", updatedPoll);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error("❌ [Socket] Error voting:", errorMessage);
         socket.emit("error", { message: errorMessage });
       }
     });

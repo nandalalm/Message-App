@@ -25,26 +25,76 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
     }).exec();
   }
 
-  async vote(pollId: string, optionIndex: number, userId: string): Promise<IPoll | null> {
+  async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<IPoll | null> {
     const poll = await this.model.findById(pollId);
     if (!poll || !poll.isActive || poll.expiresAt < new Date()) return null;
 
-    const hasVotedThisOption = poll.voters.some(v => v.userId === userId && v.optionIndex === optionIndex);
-    const hasVotedAnyOption = poll.voters.some(v => v.userId === userId);
+    const existingVote = poll.voters.find(v => v.userId === userId && v.optionIndex === optionIndex);
+    const anyExistingVote = poll.voters.find(v => v.userId === userId);
 
     if (poll.allowMultiple) {
-      if (hasVotedThisOption) return null;
+      if (existingVote) {
+        // Toggle OFF (Deselect)
+        return this.model.findOneAndUpdate(
+          { _id: pollId },
+          {
+            $inc: { [`options.${optionIndex}.votes`]: -1 },
+            $pull: { voters: { userId, optionIndex } }
+          },
+          { new: true }
+        ).exec();
+      } else {
+        // Toggle ON
+        return this.model.findOneAndUpdate(
+          { _id: pollId },
+          {
+            $inc: { [`options.${optionIndex}.votes`]: 1 },
+            $push: { voters: { userId, userName, optionIndex } }
+          },
+          { new: true }
+        ).exec();
+      }
     } else {
-      if (hasVotedAnyOption) return null;
+      if (anyExistingVote) {
+        if (anyExistingVote.optionIndex === optionIndex) {
+          // Deselect same option
+          return this.model.findOneAndUpdate(
+            { _id: pollId },
+            {
+              $inc: { [`options.${optionIndex}.votes`]: -1 },
+              $pull: { voters: { userId, optionIndex } }
+            },
+            { new: true }
+          ).exec();
+        } else {
+          // Switch vote
+          const oldIndex = anyExistingVote.optionIndex;
+          return this.model.findOneAndUpdate(
+            { _id: pollId },
+            {
+              $inc: {
+                [`options.${oldIndex}.votes`]: -1,
+                [`options.${optionIndex}.votes`]: 1
+              },
+              $set: { "voters.$[elem].optionIndex": optionIndex, "voters.$[elem].userName": userName }
+            },
+            {
+              arrayFilters: [{ "elem.userId": userId }],
+              new: true
+            }
+          ).exec();
+        }
+      } else {
+        // New vote
+        return this.model.findOneAndUpdate(
+          { _id: pollId },
+          {
+            $inc: { [`options.${optionIndex}.votes`]: 1 },
+            $push: { voters: { userId, userName, optionIndex } }
+          },
+          { new: true }
+        ).exec();
+      }
     }
-
-    return this.model.findOneAndUpdate(
-      { _id: pollId },
-      {
-        $inc: { [`options.${optionIndex}.votes`]: 1 },
-        $push: { voters: { userId, optionIndex } }
-      },
-      { new: true }
-    ).exec();
   }
 }

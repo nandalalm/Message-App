@@ -48,10 +48,10 @@ export class PollService implements IPollService {
     return this.mapToDTO(poll, data.creatorId);
   }
 
-  async vote(pollId: string, optionIndex: number, userId: string): Promise<PollDTO> {
-    const poll = await this._pollRepository.vote(pollId, optionIndex, userId);
+  async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<PollDTO> {
+    const poll = await this._pollRepository.vote(pollId, optionIndex, userId, userName);
     if (!poll) {
-      throw new Error("Unable to vote. Poll may be inactive or you've already voted (or selected this option).");
+      throw new Error("Unable to vote. Poll may be inactive.");
     }
     return this.mapToDTO(poll, userId);
   }
@@ -75,7 +75,8 @@ export class PollService implements IPollService {
       isActive: poll.isActive && poll.expiresAt > new Date(),
       allowMultiple: poll.allowMultiple,
       hasVoted: poll.voters.some(v => v.userId === userId),
-      votedOptionIndices: poll.voters.filter(v => v.userId === userId).map(v => v.optionIndex)
+      votedOptionIndices: poll.voters.filter(v => v.userId === userId).map(v => v.optionIndex),
+      voters: poll.voters.map(v => ({ userName: v.userName, optionIndex: v.optionIndex }))
     };
   }
 }

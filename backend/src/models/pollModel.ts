@@ -13,7 +13,7 @@ export interface IPoll extends Document {
   expiresAt: Date;
   isActive: boolean;
   allowMultiple: boolean;
-  voters: { userId: string; optionIndex: number }[]; // Track who voted for what
+  voters: { userId: string; userName: string; optionIndex: number }[]; // Track who voted for what
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +54,7 @@ const PollSchema: Schema = new Schema(
     voters: [
       {
         userId: { type: String, required: true },
+        userName: { type: String, required: true },
         optionIndex: { type: Number, required: true },
       },
     ],

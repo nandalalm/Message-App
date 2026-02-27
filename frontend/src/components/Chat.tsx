@@ -28,22 +28,15 @@ const Chat: React.FC<ChatProps> = ({ socket }) => {
   };
 
   useEffect(() => {
-    if (!socket) {
-      console.log("⚠️ [Chat] No socket instance provided yet.");
-      return;
-    }
-
-    console.log("🔌 [Chat] Initializing socket listeners. Connected:", socket.connected);
+    if (!socket) return;
 
     socket.emit("getChatHistory");
 
     const handleChatHistory = (history: Message[]) => {
-      console.log("📜 [Chat] History received, count:", history.length);
       setMessages(history);
     };
 
     const handleNewMessage = (message: Message) => {
-      console.log("📩 [Chat] New message received:", message.id);
       setMessages((prev) => [...prev, message]);
     };
 
@@ -60,7 +53,6 @@ const Chat: React.FC<ChatProps> = ({ socket }) => {
     socket.on("userTyping", handleUserTyping);
 
     return () => {
-      console.log("🔌 [Chat] Cleaning up socket listeners.");
       socket.off("chatHistory", handleChatHistory);
       socket.off("newMessage", handleNewMessage);
       socket.off("userTyping", handleUserTyping);
@@ -73,10 +65,7 @@ const Chat: React.FC<ChatProps> = ({ socket }) => {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !socket) {
-      console.log("🚫 [Chat] Cannot send message. Ready:", !!socket, !!user, !!newMessage.trim());
-      return;
-    }
+    if (!newMessage.trim() || !user || !socket) return;
 
     const messageData = {
       senderId: user.id,
@@ -84,7 +73,6 @@ const Chat: React.FC<ChatProps> = ({ socket }) => {
       content: newMessage.trim(),
     };
 
-    console.log("📤 [Chat] Emitting sendMessage:", messageData);
     socket.emit("sendMessage", messageData);
 
     setNewMessage("");
