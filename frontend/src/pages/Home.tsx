@@ -1,15 +1,60 @@
+import { useState, useEffect } from "react";
+import { io, Socket } from "socket.io-client";
 import Navbar from "../components/Navbar";
 import Chat from "../components/Chat";
+import PollComponent from "../components/Poll";
 
 const Home = () => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  useEffect(() => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    const socketUrl = backendUrl || apiBaseUrl?.replace("/api", "") || "http://localhost:5000";
+
+    console.log("🌐 [Home] Attempting socket connection to:", socketUrl);
+
+    const newSocket = io(socketUrl, {
+      withCredentials: true,
+      transports: ["polling", "websocket"], // Ensure fallback for local development
+    });
+
+    newSocket.on("connect", () => {
+      console.log("✅ [Home] Socket connected!", newSocket.id);
+      setSocket(newSocket);
+    });
+
+    newSocket.on("connect_error", (error) => {
+      console.error("❌ [Home] Socket connection error:", error.message);
+    });
+
+    newSocket.on("disconnect", (reason) => {
+      console.warn("🔌 [Home] Socket disconnected:", reason);
+    });
+
+    setSocket(newSocket); // Set it anyway so children see the instance and its internal state
+
+    return () => {
+      console.log("🔌 [Home] Disconnecting socket...");
+      newSocket.disconnect();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Chat Section */}
-        <section className="animate-slide-up">
-          <Chat />
-        </section>
+      <div className="max-w-[1400px] mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Chat Column */}
+          <section className="animate-slide-up h-full">
+            <Chat socket={socket} />
+          </section>
+
+          {/* Polling Column */}
+          <section className="animate-slide-up h-full" style={{ animationDelay: '100ms' }}>
+            <PollComponent socket={socket} />
+          </section>
+        </div>
       </div>
     </div>
   );

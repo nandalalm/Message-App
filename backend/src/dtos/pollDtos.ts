@@ -11,13 +11,16 @@ export interface PollDTO {
   options: PollOptionDTO[];
   expiresAt: string;
   isActive: boolean;
-  hasVoted: boolean; // Field to indicate if the requesting user has already voted
+  allowMultiple: boolean;
+  hasVoted: boolean;
+  votedOptionIndices: number[]; // New field to track specific selections
 }
 
 export interface CreatePollDTO {
   creatorId: string;
   creatorName: string;
   question: string;
-  options: string[]; // Just the text for the options
+  options: string[];
   durationMinutes: number;
+  allowMultiple: boolean;
 }

@@ -11,6 +11,10 @@ import { IMessageRepository } from "../interfaces/Repositories/IMessageRepositor
 import { IMessageService } from "../interfaces/services/IMessageService";
 import { MessageRepository } from "../repositories/messageRepository";
 import { MessageService } from "../services/messageService";
+import { IPollRepository } from "../interfaces/Repositories/IPollRepository";
+import { IPollService } from "../interfaces/services/IPollService";
+import { PollRepository } from "../repositories/pollRepository";
+import { PollService } from "../services/pollService";
 import { TYPES } from "./types";
 
 export const container = new Container();
@@ -34,4 +38,11 @@ container.bind<IMessageRepository>(TYPES.MessageRepository).toConstantValue(new 
 container.bind<IMessageService>(TYPES.MessageService).toDynamicValue(() => {
   const messageRepo = container.get<IMessageRepository>(TYPES.MessageRepository);
   return new MessageService(messageRepo);
+});
+
+container.bind<IPollRepository>(TYPES.PollRepository).toConstantValue(new PollRepository());
+
+container.bind<IPollService>(TYPES.PollService).toDynamicValue(() => {
+  const pollRepo = container.get<IPollRepository>(TYPES.PollRepository);
+  return new PollService(pollRepo);
 });

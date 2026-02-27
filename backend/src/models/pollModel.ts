@@ -12,7 +12,8 @@ export interface IPoll extends Document {
   options: IPollOption[];
   expiresAt: Date;
   isActive: boolean;
-  votedUserIds: string[]; // Store IDs of users who have already voted
+  allowMultiple: boolean;
+  voters: { userId: string; optionIndex: number }[]; // Track who voted for what
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,9 +47,14 @@ const PollSchema: Schema = new Schema(
       type: Boolean,
       default: true,
     },
-    votedUserIds: [
+    allowMultiple: {
+      type: Boolean,
+      default: false,
+    },
+    voters: [
       {
-        type: String,
+        userId: { type: String, required: true },
+        optionIndex: { type: Number, required: true },
       },
     ],
   },

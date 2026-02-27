@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { Send, MessageSquare } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
@@ -11,12 +11,15 @@ interface Message {
   createdAt: string;
 }
 
-const Chat: React.FC = () => {
+interface ChatProps {
+  socket: Socket | null;
+}
+
+const Chat: React.FC<ChatProps> = ({ socket }) => {
   const { user } = useAppSelector((state) => state.auth);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -25,36 +28,44 @@ const Chat: React.FC = () => {
   };
 
   useEffect(() => {
-    // Initialize socket connection
-    const socketUrl = import.meta.env.VITE_API_BASE_URL?.replace("/api", "") || "http://localhost:5000";
-    socketRef.current = io(socketUrl, {
-      withCredentials: true,
-    });
+    if (!socket) {
+      console.log("⚠️ [Chat] No socket instance provided yet.");
+      return;
+    }
 
-    const socket = socketRef.current;
+    console.log("🔌 [Chat] Initializing socket listeners. Connected:", socket.connected);
 
     socket.emit("getChatHistory");
 
-    socket.on("chatHistory", (history: Message[]) => {
+    const handleChatHistory = (history: Message[]) => {
+      console.log("📜 [Chat] History received, count:", history.length);
       setMessages(history);
-    });
+    };
 
-    socket.on("newMessage", (message: Message) => {
+    const handleNewMessage = (message: Message) => {
+      console.log("📩 [Chat] New message received:", message.id);
       setMessages((prev) => [...prev, message]);
-    });
+    };
 
-    socket.on("userTyping", (data: { senderName: string; isTyping: boolean }) => {
+    const handleUserTyping = (data: { senderName: string; isTyping: boolean }) => {
       if (data.isTyping) {
         setTypingUser(data.senderName);
       } else {
         setTypingUser(null);
       }
-    });
+    };
+
+    socket.on("chatHistory", handleChatHistory);
+    socket.on("newMessage", handleNewMessage);
+    socket.on("userTyping", handleUserTyping);
 
     return () => {
-      socket.disconnect();
+      console.log("🔌 [Chat] Cleaning up socket listeners.");
+      socket.off("chatHistory", handleChatHistory);
+      socket.off("newMessage", handleNewMessage);
+      socket.off("userTyping", handleUserTyping);
     };
-  }, []);
+  }, [socket]);
 
   useEffect(() => {
     scrollToBottom();
@@ -62,17 +73,22 @@ const Chat: React.FC = () => {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !socketRef.current) return;
+    if (!newMessage.trim() || !user || !socket) {
+      console.log("🚫 [Chat] Cannot send message. Ready:", !!socket, !!user, !!newMessage.trim());
+      return;
+    }
 
-    socketRef.current.emit("sendMessage", {
+    const messageData = {
       senderId: user.id,
       senderName: `${user.firstName} ${user.lastName || ""}`.trim(),
       content: newMessage.trim(),
-    });
+    };
+
+    console.log("📤 [Chat] Emitting sendMessage:", messageData);
+    socket.emit("sendMessage", messageData);
 
     setNewMessage("");
-    // Stop typing indicator immediately
-    socketRef.current.emit("typing", {
+    socket.emit("typing", {
       senderName: user.firstName,
       isTyping: false,
     });
@@ -81,9 +97,9 @@ const Chat: React.FC = () => {
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
 
-    if (!socketRef.current || !user) return;
+    if (!socket || !user) return;
 
-    socketRef.current.emit("typing", {
+    socket.emit("typing", {
       senderName: user.firstName,
       isTyping: true,
     });
@@ -91,7 +107,7 @@ const Chat: React.FC = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     typingTimeoutRef.current = setTimeout(() => {
-      socketRef.current?.emit("typing", {
+      socket?.emit("typing", {
         senderName: user.firstName,
         isTyping: false,
       });
@@ -112,7 +128,7 @@ const Chat: React.FC = () => {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 scrollbar-hide">
         {messages.map((msg) => {
           const isMe = msg.senderId === user?.id;
           return (
@@ -120,32 +136,35 @@ const Chat: React.FC = () => {
               key={msg.id}
               className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
             >
-              <span className="text-[10px] font-bold text-gray-500 mb-1 px-1 uppercase tracking-wider">
-                {isMe ? "You" : msg.senderName}
-              </span>
+              <div className="flex items-center gap-1.5 mb-0.5 px-1">
+                <span className={`text-[11px] font-black uppercase tracking-tighter ${isMe ? "text-indigo-600" : "text-amber-600"
+                  }`}>
+                  {isMe ? "YOU" : msg.senderName}
+                </span>
+                <span className="text-[9px] text-gray-400 font-medium">
+                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
               <div
-                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all hover:shadow-md ${isMe
-                  ? "bg-indigo-600 text-white rounded-tr-none"
-                  : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
+                className={`max-w-[90%] px-4 py-2 rounded-xl text-[13px] leading-relaxed shadow-sm transition-all border ${isMe
+                  ? "bg-indigo-600 text-white border-indigo-500 rounded-tr-none"
+                  : "bg-white text-gray-800 border-gray-100 rounded-tl-none"
                   }`}
               >
                 {msg.content}
               </div>
-              <span className="text-[9px] text-gray-400 mt-1 px-1">
-                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
             </div>
           );
         })}
         {typingUser && (
-          <div className="flex flex-col items-start animate-fade-in">
-            <span className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">
-              {typingUser} is typing...
+          <div className="flex flex-col items-start animate-pulse">
+            <span className="text-[10px] font-black text-amber-500 mb-1 px-1 uppercase italic tracking-widest">
+              {typingUser} IS TYPING...
             </span>
-            <div className="bg-white border border-gray-100 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex gap-1">
-              <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            <div className="px-3 py-2 bg-white/50 rounded-lg flex gap-1">
+              <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
             </div>
           </div>
         )}
