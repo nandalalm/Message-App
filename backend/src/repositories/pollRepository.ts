@@ -2,6 +2,7 @@ import { injectable } from "inversify";
 import { BaseRepository } from "./BaseRepository";
 import Poll, { IPoll } from "../models/pollModel";
 import { IPollRepository } from "../interfaces/Repositories/IPollRepository";
+import { FilterQuery } from "mongoose";
 
 @injectable()
 export class PollRepository extends BaseRepository<IPoll> implements IPollRepository {
@@ -9,8 +10,30 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
     super(Poll);
   }
 
+  async findPollsFiltered(userId: string, filterType: string): Promise<IPoll[]> {
+    let query: FilterQuery<IPoll> = {};
+    const now = new Date();
+
+    switch (filterType) {
+      case "active":
+        query = { isActive: true, expiresAt: { $gt: now } };
+        break;
+      case "timedOut":
+        query = { $or: [{ isActive: false }, { expiresAt: { $lte: now } }] };
+        break;
+      case "myPolls":
+        query = { creatorId: userId };
+        break;
+      default:
+        // All polls (latest 100)
+        query = {};
+    }
+
+    return this.model.find(query).sort({ createdAt: -1 }).limit(100).exec();
+  }
+
   async findActivePolls(): Promise<IPoll[]> {
-    return this.model.find({ isActive: true, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).exec();
+    return this.findPollsFiltered("", "active");
   }
 
   async getActivePollCount(): Promise<number> {
@@ -22,6 +45,15 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
       creatorId: userId,
       isActive: true,
       expiresAt: { $gt: new Date() }
+    }).exec();
+  }
+
+  async getTodayPollCountForUser(userId: string): Promise<number> {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    return this.model.countDocuments({
+      creatorId: userId,
+      createdAt: { $gte: startOfDay }
     }).exec();
   }
 
@@ -85,7 +117,7 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
           ).exec();
         }
       } else {
-        // New vote
+        // Fresh vote
         return this.model.findOneAndUpdate(
           { _id: pollId },
           {

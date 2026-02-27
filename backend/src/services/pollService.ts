@@ -17,19 +17,24 @@ export class PollService implements IPollService {
   }
 
   async createPoll(data: CreatePollDTO): Promise<PollDTO> {
-    // 1. Validate global limit (max 10 active polls)
+    // 1. Global Active Limit (10)
     const activeCount = await this._pollRepository.getActivePollCount();
     if (activeCount >= 10) {
-      throw new Error("Global limit of 10 active polls reached.");
+      throw new Error("Maximum global active polls (10) reached. Please wait for one to conclude.");
     }
 
-    // 2. Validate user limit (max 1 active poll per user)
+    // 2. Per-User Active Limit (1)
     const userActiveCount = await this._pollRepository.getUserActivePollCount(data.creatorId);
     if (userActiveCount >= 1) {
-      throw new Error("You already have an active poll.");
+      throw new Error("You already have an active poll. You can only have one active poll at a time.");
     }
 
-    // 3. Validate duration (max 30 mins)
+    // 3. Per-User Daily Limit (3)
+    const userTodayCount = await this._pollRepository.getTodayPollCountForUser(data.creatorId);
+    if (userTodayCount >= 3) {
+      throw new Error("Daily poll limit (3) reached. You can create more polls tomorrow.");
+    }
+
     const duration = Math.min(data.durationMinutes, 30);
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + duration);
@@ -51,13 +56,13 @@ export class PollService implements IPollService {
   async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<PollDTO> {
     const poll = await this._pollRepository.vote(pollId, optionIndex, userId, userName);
     if (!poll) {
-      throw new Error("Unable to vote. Poll may be inactive.");
+      throw new Error("Unable to vote. Poll may be inactive or concluded.");
     }
     return this.mapToDTO(poll, userId);
   }
 
-  async getActivePolls(userId: string): Promise<PollDTO[]> {
-    const polls = await this._pollRepository.findActivePolls();
+  async getFilteredPolls(userId: string, filterType: string): Promise<PollDTO[]> {
+    const polls = await this._pollRepository.findPollsFiltered(userId, filterType);
     return polls.map(poll => this.mapToDTO(poll, userId));
   }
 

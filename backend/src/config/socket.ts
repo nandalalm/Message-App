@@ -46,9 +46,18 @@ export const initSocket = (server: HTTPServer) => {
     });
 
     // Poll Events
+    socket.on("getPolls", async (data: { userId: string, filterType: string }) => {
+      try {
+        const polls = await pollService.getFilteredPolls(data.userId, data.filterType);
+        socket.emit("pollsList", polls);
+      } catch (error) {
+        console.error("Error fetching polls:", error);
+      }
+    });
+
     socket.on("getActivePolls", async (data: { userId: string }) => {
       try {
-        const polls = await pollService.getActivePolls(data.userId);
+        const polls = await pollService.getFilteredPolls(data.userId, "active");
         socket.emit("activePolls", polls);
       } catch (error) {
         console.error("Error fetching polls:", error);
