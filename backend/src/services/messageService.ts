@@ -26,7 +26,7 @@ export class MessageService implements IMessageService {
     return this.mapToDTO(message);
   }
 
-  async getChatHistory(limit: number = 50): Promise<MessageDTO[]> {
+  async getChatHistory(limit: number = 100): Promise<MessageDTO[]> {
     const messages = await this._messageRepository.getLatestMessages(limit);
     // Sort by createdAt ascending for the frontend
     return messages

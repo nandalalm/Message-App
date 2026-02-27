@@ -47,9 +47,11 @@ Develop a real-time polling application integrated with a global chat feature us
 - **Status**: [IN PROGRESS]
 - **Instruction**: Once this stage is completed and verified, the user may push changes to GitHub.
 
-#### Stage 2: Real-time Polling System [ ]
+#### Stage 2: Real-time Polling System [/]
 **Scope**: Poll creation, real-time voting, and broadcasting results.
-- **Status**: [PENDING]
+- **Rules**: 100-message chat cap, 30-min max timer for polls, 1 active poll per user, 10 max global active polls.
+- **Layout**: 2-column layout (Chat left, Polling right).
+- **Status**: [IN PROGRESS]
 - **Instruction**: Once this stage is completed and verified, the user may push changes to GitHub.
 
 #### Stage 3: UI/UX Refinement & Final Polish [ ]
