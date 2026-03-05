@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Socket } from "socket.io-client";
-import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter } from "lucide-react";
+import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter, Users } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
 interface PollOption {
@@ -75,30 +75,56 @@ const PollTimer: React.FC<{ expiresAt: string; onConclude?: () => void }> = ({ e
   );
 };
 
-const VoterModal: React.FC<{ voters: string[]; onClose: () => void; optionText: string }> = ({ voters, onClose, optionText }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-    <div className="bg-white rounded-2xl w-full max-w-xs overflow-hidden shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
-      <div className="bg-amber-500 p-4 flex justify-between items-center text-white">
-        <h3 className="font-bold text-sm truncate">Voters for "{optionText}"</h3>
-        <button onClick={onClose} className="hover:rotate-90 transition-transform font-bold outline-none">✕</button>
-      </div>
-      <div className="max-h-60 overflow-y-auto p-2 scrollbar-hide">
-        {voters.length === 0 ? (
-          <p className="text-center py-8 text-gray-400 text-xs italic">No votes yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {voters.map((name, i) => (
-              <li key={i} className="px-3 py-2 bg-gray-50 rounded-lg text-xs font-medium text-gray-700 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
+const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, onClose }) => {
+  const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="bg-amber-500 p-4 flex justify-between items-center text-white">
+          <div className="flex items-center gap-2 min-w-0">
+            <Users size={16} />
+            <h3 className="font-bold text-sm truncate">Vote Details</h3>
+          </div>
+          <button onClick={onClose} className="hover:rotate-90 transition-transform font-bold outline-none ml-2 shrink-0">✕</button>
+        </div>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1 truncate">{poll.question}</p>
+        <div className="max-h-72 overflow-y-auto p-3 scrollbar-hide space-y-3">
+          {totalVotes === 0 ? (
+            <p className="text-center py-8 text-gray-400 text-xs italic">No votes have been cast yet.</p>
+          ) : (
+            poll.options.map((opt, idx) => {
+              const optVoters = poll.voters.filter(v => v.optionIndex === idx).map(v => v.userName);
+              const percentage = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
+              return (
+                <div key={idx} className="bg-gray-50 rounded-xl overflow-hidden">
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <span className="text-xs font-bold text-gray-700 truncate">{opt.text}</span>
+                    <span className="text-[10px] font-black text-amber-600 ml-2 shrink-0">{opt.votes} vote{opt.votes !== 1 ? "s" : ""} · {percentage}%</span>
+                  </div>
+                  {optVoters.length > 0 ? (
+                    <ul className="px-3 pb-2 space-y-1">
+                      {optVoters.map((name, i) => (
+                        <li key={i} className="flex items-center gap-2 text-[11px] text-gray-500">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-3 pb-2 text-[10px] italic text-gray-300">No votes for this option.</p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="px-4 pb-3 pt-1 text-[10px] text-gray-400 font-medium text-center">
+          {totalVotes} total vote{totalVotes !== 1 ? "s" : ""}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const PollComponent: React.FC<PollProps> = ({ socket }) => {
   const { user } = useAppSelector((state) => state.auth);
@@ -109,7 +135,7 @@ const PollComponent: React.FC<PollProps> = ({ socket }) => {
   const [duration, setDuration] = useState(5);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [includeNone, setIncludeNone] = useState(false);
-  const [activeVoterModal, setActiveVoterModal] = useState<{ voters: string[]; optionText: string } | null>(null);
+  const [activeVoterModal, setActiveVoterModal] = useState<Poll | null>(null);
   const [filter, setFilter] = useState<string>("active");
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -227,9 +253,8 @@ const PollComponent: React.FC<PollProps> = ({ socket }) => {
       </div>
 
       {activeVoterModal && (
-        <VoterModal
-          voters={activeVoterModal.voters}
-          optionText={activeVoterModal.optionText}
+        <AllVotersModal
+          poll={activeVoterModal}
           onClose={() => setActiveVoterModal(null)}
         />
       )}
@@ -357,10 +382,9 @@ const PollComponent: React.FC<PollProps> = ({ socket }) => {
                     {poll.options.map((opt, idx) => {
                       const percentage = totalVotes > 0 ? (opt.votes / totalVotes) * 100 : 0;
                       const hasVotedThis = poll.votedOptionIndices?.includes(idx);
-                      const optVoters = poll.voters.filter(v => v.optionIndex === idx).map(v => v.userName);
 
                       return (
-                        <div key={idx} className="relative group">
+                        <div key={idx}>
                           <button
                             onClick={() => handleVote(poll.id, idx, isConcluded)}
                             className={`w-full relative h-10 rounded-lg overflow-hidden border transition-all ${hasVotedThis
@@ -380,25 +404,28 @@ const PollComponent: React.FC<PollProps> = ({ socket }) => {
                               </div>
                             </div>
                           </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setActiveVoterModal({ voters: optVoters, optionText: opt.text }); }}
-                            className="absolute -right-1 -top-1 p-1 bg-white shadow-sm border border-gray-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-amber-50"
-                          >
-                            <Plus size={10} className="text-amber-600" />
-                          </button>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold justify-center pt-1 italic">
-                    {isConcluded ? (
-                      <span className="text-gray-400">VOTING FINISHED - RESULTS FINAL</span>
-                    ) : poll.hasVoted ? (
-                      <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
-                    ) : (
-                      <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
-                    )}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="text-[10px] font-bold italic">
+                      {isConcluded ? (
+                        <span className="text-gray-400">VOTING FINISHED - RESULTS FINAL</span>
+                      ) : poll.hasVoted ? (
+                        <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
+                      ) : (
+                        <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setActiveVoterModal(poll)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 hover:underline transition-colors"
+                    >
+                      <Users size={11} />
+                      View Votes
+                    </button>
                   </div>
                 </div>
               );
