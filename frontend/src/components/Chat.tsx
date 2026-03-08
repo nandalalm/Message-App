@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Send, MessageSquare, ArrowLeftRight } from "lucide-react";
+import { Send, MessageSquare, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
 interface Message {
@@ -29,6 +29,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isInitialLoadRef = useRef(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -105,12 +106,18 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   }, [messages]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight } = e.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    
+    // Load more
     if (scrollTop === 0 && hasMore && !isLoadingMore && socket && messages.length > 0) {
       setIsLoadingMore(true);
       prevScrollHeightRef.current = scrollHeight;
       socket.emit("getChatHistory", { limit: 20, skip: messages.length });
     }
+
+    // Show/hide scroll button
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
+    setShowScrollButton(!isNearBottom && messages.length > 5);
   };
 
   useEffect(() => {
@@ -159,7 +166,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+    <div className="flex flex-col h-[600px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
       {/* Header */}
       <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3">
         <div className="p-2 bg-white/20 rounded-lg">
@@ -208,9 +215,9 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
                 </span>
               </div>
               <div
-                className={`max-w-[90%] px-4 py-2 max-sm:px-3 max-sm:py-1.5 rounded-xl text-[13px] max-sm:text-[12px] leading-relaxed shadow-sm transition-all border ${isMe
-                  ? "bg-indigo-600 text-white border-indigo-500 rounded-tr-none"
-                  : "bg-white text-gray-800 border-gray-100 rounded-tl-none"
+                className={`max-w-[80%] max-sm:max-w-[85%] px-4 py-2 max-sm:px-3 max-sm:py-1.5 rounded-2xl text-[13px] max-sm:text-[12px] leading-relaxed shadow-sm transition-all border break-words whitespace-pre-wrap ${isMe
+                  ? "bg-indigo-600 text-white border-indigo-500 rounded-tr-none ml-12 max-sm:ml-8"
+                  : "bg-white text-gray-800 border-gray-100 rounded-tl-none mr-12 max-sm:mr-8"
                   }`}
               >
                 {msg.content}
@@ -232,6 +239,17 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Floating Scroll Button */}
+      {showScrollButton && (
+        <button
+          onClick={() => scrollToBottom("smooth")}
+          className="absolute bottom-[85px] right-4 p-2.5 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 transition-all animate-bounce z-20 border-2 border-white/20"
+          title="Scroll to latest"
+        >
+          <ChevronDown size={18} />
+        </button>
+      )}
 
       {/* Input Area */}
       <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100">

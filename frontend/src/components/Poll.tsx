@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter, Users, ArrowLeftRight } from "lucide-react";
+import { Vote, Plus, AlertCircle, CheckCircle2, User, Filter, Users, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
 interface PollOption {
@@ -14,8 +14,7 @@ interface Poll {
   creatorName: string;
   question: string;
   options: PollOption[];
-  expiresAt: string;
-  isActive: boolean;
+
   allowMultiple: boolean;
   hasVoted: boolean;
   votedOptionIndices?: number[];
@@ -28,48 +27,6 @@ interface Toast {
   type: "success" | "error";
 }
 
-const PollTimer: React.FC<{ expiresAt: string; onConclude?: () => void }> = ({ expiresAt, onConclude }) => {
-  const [timeLeft, setTimeLeft] = useState(0);
-
-  useEffect(() => {
-    const calculateTime = () => {
-      const diff = new Date(expiresAt).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft(0);
-        onConclude?.();
-      } else {
-        setTimeLeft(diff);
-      }
-    };
-    calculateTime();
-    const timer = setInterval(calculateTime, 1000);
-    return () => clearInterval(timer);
-  }, [expiresAt, onConclude]);
-
-  if (timeLeft === 0) {
-    return (
-      <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-400">
-        <Clock size={10} />
-        <span>CONCLUDED</span>
-      </div>
-    );
-  }
-
-  const minutes = Math.floor(timeLeft / 60000);
-  const seconds = Math.floor((timeLeft % 60000) / 1000);
-
-  let colorClass = "text-green-600 bg-green-50";
-  if (minutes < 2) colorClass = "text-red-600 bg-red-50";
-  else if (minutes < 5) colorClass = "text-orange-600 bg-orange-50";
-  else if (minutes < 15) colorClass = "text-yellow-600 bg-yellow-50";
-
-  return (
-    <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full ${colorClass} transition-colors duration-1000`}>
-      <Clock size={10} />
-      <span>{minutes}:{seconds.toString().padStart(2, "0")}</span>
-    </div>
-  );
-};
 
 const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, onClose }) => {
   const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
@@ -134,20 +91,27 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const [isCreating, setIsCreating] = useState(false);
   const [newQuestion, setNewQuestion] = useState("");
   const [newOptions, setNewOptions] = useState(["", ""]);
-  const [duration, setDuration] = useState(5);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [includeNone, setIncludeNone] = useState(false);
   const [activeVoterModal, setActiveVoterModal] = useState<Poll | null>(null);
-  const [filter, setFilter] = useState<string>("active");
+  const [filter, setFilter] = useState<"all" | "myPolls">("all");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const pollsContainerRef = useRef<HTMLDivElement>(null);
+  const pollsEndRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const isInitialLoadRef = useRef(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const addToast = (message: string, type: "success" | "error") => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  };
+
+  const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
+    pollsEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
@@ -168,8 +132,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         setPolls(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const newPolls = list.filter(p => !existingIds.has(p.id));
-          const combined = [...prev, ...newPolls];
-          return combined.slice(0, 100);
+          const combined = [...newPolls, ...prev]; // Older polls at top
+          return combined.slice(-100);
         });
         setIsLoadingMore(false);
       };
@@ -178,13 +142,16 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         setTimeout(updateData, 1000);
       } else {
         updateData();
+        if (isInitialLoadRef.current) {
+          isInitialLoadRef.current = false;
+          setTimeout(() => scrollToBottom("auto"), 100);
+        }
       }
     };
 
     const handlePollCreated = (poll: Poll) => {
-      if (filter === "active" || filter === "myPolls" || filter === "all") {
-        setPolls(prev => [poll, ...prev].slice(0, 100));
-      }
+      setPolls(prev => [...prev, poll].slice(-100)); // Newest at bottom
+      setTimeout(() => scrollToBottom("smooth"), 100);
       addToast("Poll created successfully!", "success");
     };
     const handleVoteUpdated = (updatedPoll: Poll) => {
@@ -209,12 +176,27 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     };
   }, [socket, user, filter, isLoadingMore]);
 
+  useEffect(() => {
+    if (pollsContainerRef.current && prevScrollHeightRef.current > 0) {
+      const { scrollHeight } = pollsContainerRef.current;
+      pollsContainerRef.current.scrollTop = scrollHeight - prevScrollHeightRef.current;
+      prevScrollHeightRef.current = 0;
+    }
+  }, [polls]);
+
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore && !isLoadingMore && socket && polls.length > 0) {
+    
+    // Check for load more (scrolling to top)
+    if (scrollTop === 0 && hasMore && !isLoadingMore && socket && polls.length > 0) {
       setIsLoadingMore(true);
+      prevScrollHeightRef.current = scrollHeight;
       socket.emit("getPolls", { userId: user?.id, filterType: filter, limit: 20, skip: polls.length });
     }
+
+    // Show/hide scroll to bottom button
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
+    setShowScrollButton(!isNearBottom && polls.length > 5);
   };
 
   const handleCreatePoll = (e: React.FormEvent) => {
@@ -247,17 +229,12 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       }
     }
 
-    if (duration < 1 || duration > 30) {
-      addToast("Duration must be 1-30 minutes.", "error");
-      return;
-    }
 
     socket.emit("createPoll", {
       creatorId: user.id,
       creatorName: `${user.firstName} ${user.lastName || ""}`.trim(),
       question: trimmedQuestion,
       options: filteredOptions,
-      durationMinutes: duration,
       allowMultiple: allowMultiple,
     });
 
@@ -268,8 +245,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     setIsCreating(false);
   };
 
-  const handleVote = (pollId: string, optionIndex: number, isConcluded: boolean) => {
-    if (!socket || !user || isConcluded) return;
+  const handleVote = (pollId: string, optionIndex: number) => {
+    if (!socket || !user) return;
     socket.emit("vote", { pollId, optionIndex, userId: user.id, userName: `${user.firstName} ${user.lastName || ""}`.trim() });
   };
 
@@ -301,8 +278,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
           <div>
-            <h2 className="font-bold text-lg max-sm:text-sm leading-none">Live Polls</h2>
-            <p className="text-amber-100 text-[10px] max-sm:text-[8px] font-medium mt-1">Maximum 100 recent polls</p>
+            <h2 className="font-bold text-lg max-sm:text-sm leading-none">All Polls</h2>
+            <p className="text-amber-100 text-[10px] max-sm:text-[8px] font-medium mt-1">10 polls per user daily</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -325,14 +302,12 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       {!isCreating && (
         <div className="bg-amber-50 px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide border-b border-amber-100 shrink-0">
           {[
-            { id: "active", label: "Active", icon: <Clock size={12} /> },
-            { id: "timedOut", label: "Concluded", icon: <AlertCircle size={12} /> },
-            { id: "myPolls", label: "My Polls", icon: <User size={12} /> },
-            { id: "all", label: "All", icon: <Filter size={12} /> }
+            { id: "all", label: "All Polls", icon: <Filter size={12} /> },
+            { id: "myPolls", label: "My Polls", icon: <User size={12} /> }
           ].map(f => (
             <button
               key={f.id}
-              onClick={() => setFilter(f.id)}
+              onClick={() => setFilter(f.id as "all" | "myPolls")}
               className={`flex items-center gap-1.5 px-3 py-1 max-sm:px-2.5 max-sm:py-0.5 rounded-full text-[10px] max-sm:text-[9px] font-bold transition-all whitespace-nowrap ${filter === f.id ? "bg-amber-500 text-white" : "bg-white text-amber-700 hover:bg-amber-100 border border-amber-100"}`}
             >
               {f.icon} {f.label}
@@ -392,15 +367,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <input type="checkbox" id="allowMultiple" checked={allowMultiple} onChange={(e) => setAllowMultiple(e.target.checked)} className="w-4 h-4 text-amber-500 rounded" />
               <label htmlFor="allowMultiple" className="text-[11px] font-bold text-gray-600 cursor-pointer">Allow multiple choice selection</label>
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Duration (1-30 Min)</label>
-                <input type="number" min="1" max="30" value={duration} onChange={(e) => setDuration(parseInt(e.target.value))} className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none" />
-              </div>
-              <div className="flex items-end gap-2">
-                <button type="button" onClick={() => setIsCreating(false)} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
-              </div>
+            <div className="flex items-end justify-end gap-2">
+              <button type="button" onClick={() => setIsCreating(false)} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
             </div>
           </form>
         ) : (
@@ -413,21 +382,18 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             polls.map((poll) => {
               const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
               const isCreator = poll.creatorId === user?.id;
-              const isConcluded = !poll.isActive || new Date(poll.expiresAt).getTime() <= Date.now();
 
               return (
-                <div key={poll.id} className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all ${isConcluded ? "opacity-80" : "hover:scale-[1.01]"}`}>
+                <div key={poll.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all hover:scale-[1.01]">
                   <div className="flex justify-between items-start">
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-black text-amber-600 uppercase tracking-tighter bg-amber-50 px-1.5 py-0.5 rounded">
                           {isCreator ? "MY POLL" : poll.creatorName.toUpperCase()}
                         </span>
-                        {isConcluded && <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-100 px-1.5 py-0.5 rounded">FINISHED</span>}
                       </div>
                       <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1">{poll.question}</h3>
                     </div>
-                    <PollTimer expiresAt={poll.expiresAt} onConclude={() => { /* maybe refresh list */ }} />
                   </div>
 
                   <div className="space-y-2">
@@ -438,11 +404,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                       return (
                         <div key={idx}>
                           <button
-                            onClick={() => handleVote(poll.id, idx, isConcluded)}
+                            onClick={() => handleVote(poll.id, idx)}
                             className={`w-full relative h-10 rounded-lg overflow-hidden border transition-all ${hasVotedThis
                               ? "bg-amber-50 border-amber-300"
-                              : isConcluded ? "bg-gray-50 border-gray-100" : "bg-white border-gray-100 hover:border-amber-200"
-                              } ${isConcluded ? "cursor-default" : "cursor-pointer"}`}
+                              : "bg-white border-gray-100 hover:border-amber-200"
+                              } cursor-pointer`}
                           >
                             <div className="absolute top-0 left-0 h-full bg-amber-100/50 transition-all duration-700" style={{ width: `${percentage}%` }} />
                             <div className="relative z-10 flex justify-between items-center px-3 h-full text-[12px] max-sm:text-[11px]">
@@ -451,7 +417,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                                 {hasVotedThis && <CheckCircle2 size={12} className="max-sm:w-2.5 max-sm:h-2.5 text-amber-600" />}
                               </div>
                               <div className="flex items-center gap-2">
-                                {(poll.hasVoted || isCreator || isConcluded) && opt.votes > 0 && <span className="text-amber-700 font-black text-[10px] max-sm:text-[9px]">{Math.round(percentage)}%</span>}
+                                {(poll.hasVoted || isCreator) && opt.votes > 0 && <span className="text-amber-700 font-black text-[10px] max-sm:text-[9px]">{Math.round(percentage)}%</span>}
                                 <span className="text-gray-400 font-medium">({opt.votes})</span>
                               </div>
                             </div>
@@ -463,9 +429,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
                   <div className="flex items-center justify-between pt-1">
                     <div className="text-[10px] font-bold italic">
-                      {isConcluded ? (
-                        <span className="text-gray-400">VOTING FINISHED - RESULTS FINAL</span>
-                      ) : poll.hasVoted ? (
+                      {poll.hasVoted ? (
                         <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
                       ) : (
                         <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
@@ -489,7 +453,19 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-1" />
           </div>
         )}
+        <div ref={pollsEndRef} />
       </div>
+
+      {/* Floating Scroll Button */}
+      {showScrollButton && !isCreating && (
+        <button
+          onClick={() => scrollToBottom("smooth")}
+          className="absolute bottom-4 right-4 p-2.5 bg-amber-500 text-white rounded-full shadow-2xl hover:bg-amber-600 transition-all animate-bounce z-20 border-2 border-white/20"
+          title="Scroll to latest"
+        >
+          <ChevronDown size={18} />
+        </button>
+      )}
     </div>
   );
 };

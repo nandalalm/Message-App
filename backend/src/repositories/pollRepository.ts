@@ -12,15 +12,7 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
 
   async findPollsFiltered(userId: string, filterType: string, limit: number = 20, skip: number = 0): Promise<IPoll[]> {
     let query: FilterQuery<IPoll> = {};
-    const now = new Date();
-
     switch (filterType) {
-      case "active":
-        query = { isActive: true, expiresAt: { $gt: now } };
-        break;
-      case "timedOut":
-        query = { $or: [{ isActive: false }, { expiresAt: { $lte: now } }] };
-        break;
       case "myPolls":
         query = { creatorId: userId };
         break;
@@ -32,21 +24,6 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
     return this.model.find(query).sort({ createdAt: -1 }).skip(skip).limit(finalLimit).exec();
   }
 
-  async findActivePolls(): Promise<IPoll[]> {
-    return this.findPollsFiltered("", "active");
-  }
-
-  async getActivePollCount(): Promise<number> {
-    return this.model.countDocuments({ isActive: true, expiresAt: { $gt: new Date() } }).exec();
-  }
-
-  async getUserActivePollCount(userId: string): Promise<number> {
-    return this.model.countDocuments({
-      creatorId: userId,
-      isActive: true,
-      expiresAt: { $gt: new Date() }
-    }).exec();
-  }
 
   async getTodayPollCountForUser(userId: string): Promise<number> {
     const startOfDay = new Date();
@@ -59,7 +36,8 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
 
   async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<IPoll | null> {
     const poll = await this.model.findById(pollId);
-    if (!poll || !poll.isActive || poll.expiresAt < new Date()) return null;
+    if (!poll) return null;
+    // isActive check removed
 
     const existingVote = poll.voters.find(v => v.userId === userId && v.optionIndex === optionIndex);
     const anyExistingVote = poll.voters.find(v => v.userId === userId);

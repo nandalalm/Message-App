@@ -10,8 +10,6 @@ export interface IPoll extends Document {
   creatorName: string;
   question: string;
   options: IPollOption[];
-  expiresAt: Date;
-  isActive: boolean;
   allowMultiple: boolean;
   voters: { userId: string; userName: string; optionIndex: number }[]; 
   createdAt: Date;
@@ -39,14 +37,6 @@ const PollSchema: Schema = new Schema(
         votes: { type: Number, default: 0 },
       },
     ],
-    expiresAt: {
-      type: Date,
-      required: true,
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
     allowMultiple: {
       type: Boolean,
       default: false,

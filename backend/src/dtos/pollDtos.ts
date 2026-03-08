@@ -9,8 +9,6 @@ export interface PollDTO {
   creatorName: string;
   question: string;
   options: PollOptionDTO[];
-  expiresAt: string;
-  isActive: boolean;
   allowMultiple: boolean;
   hasVoted: boolean;
   votedOptionIndices: number[];
@@ -22,6 +20,5 @@ export interface CreatePollDTO {
   creatorName: string;
   question: string;
   options: string[];
-  durationMinutes: number;
   allowMultiple: boolean;
 }

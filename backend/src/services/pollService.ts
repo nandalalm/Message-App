@@ -17,35 +17,21 @@ export class PollService implements IPollService {
   }
 
   async createPoll(data: CreatePollDTO): Promise<PollDTO> {
-    const activeCount = await this._pollRepository.getActivePollCount();
-    if (activeCount >= 10) {
-      throw new Error("Maximum global active polls (10) reached. Please wait for one to conclude.");
-    }
-
-    const userActiveCount = await this._pollRepository.getUserActivePollCount(data.creatorId);
-    if (userActiveCount >= 1) {
-      throw new Error("You already have an active poll. You can only have one active poll at a time.");
-    }
-
     const userTodayCount = await this._pollRepository.getTodayPollCountForUser(data.creatorId);
-    if (userTodayCount >= 3) {
-      throw new Error("Daily poll limit (3) reached. You can create more polls tomorrow.");
+    if (userTodayCount >= 10) {
+      throw new Error("Daily poll limit (10) reached. You can create more polls tomorrow.");
     }
 
-    const duration = Math.min(data.durationMinutes, 30);
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + duration);
 
     const poll = await this._pollRepository.create({
       creatorId: new mongoose.Types.ObjectId(data.creatorId),
       creatorName: data.creatorName,
       question: data.question,
       options: data.options.map(opt => ({ text: opt, votes: 0 })),
-      expiresAt,
-      isActive: true,
       allowMultiple: data.allowMultiple,
       voters: [],
     } as Partial<IPoll>);
+    // isActive field removed
 
     return this.mapToDTO(poll, data.creatorId);
   }
@@ -73,12 +59,11 @@ export class PollService implements IPollService {
         text: opt.text,
         votes: opt.votes
       })),
-      expiresAt: poll.expiresAt.toISOString(),
-      isActive: poll.isActive && poll.expiresAt > new Date(),
       allowMultiple: poll.allowMultiple,
       hasVoted: poll.voters.some(v => v.userId === userId),
       votedOptionIndices: poll.voters.filter(v => v.userId === userId).map(v => v.optionIndex),
       voters: poll.voters.map(v => ({ userName: v.userName, optionIndex: v.optionIndex }))
     };
+    // isActive field removed
   }
 }
