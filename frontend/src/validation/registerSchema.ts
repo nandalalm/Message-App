@@ -1,20 +1,11 @@
 import { z } from "zod";
 
 export const registerSchema = z.object({
-  firstName: z
+  username: z
     .string()
-    .trim()
-    .refine((val) => val.length > 0, "This field cannot be empty")
-    .refine((val) => val.length >= 4, "First name must be at least 4 characters long")
-    .refine((val) => /^[A-Za-z]+$/.test(val), "First name must contain only letters (no spaces, numbers, or special characters)"),
-  lastName: z
-    .string()
-    .trim()
-    .optional()
-    .refine(
-      (val) => !val || (val.length > 0 && /^[A-Za-z]+$/.test(val)),
-      "Last name must contain only letters (no spaces, numbers, or special characters)"
-    ),
+    .min(4, "Username must be at least 4 characters")
+    .max(20, "Username cannot exceed 20 characters")
+    .regex(/^[a-zA-Z][a-zA-Z._]{2,}[a-zA-Z]$/, "Username must be at least 4 characters, start and end with a letter, and contain only letters, dots, or underscores (no numbers or spaces allowed)"),
   email: z
     .string()
     .trim()

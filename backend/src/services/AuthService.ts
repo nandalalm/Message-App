@@ -5,12 +5,15 @@ import { IUserService } from "../interfaces/services/IAuthService";
 import { IUserRepository } from "../interfaces/Repositories/IUserRepository";
 import { UserDTO } from "../dtos/userDtos";
 import { IUser } from "../models/userModel";
+import { HttpStatus } from "../constants/httpStatus";
 import { generateOTP, sendOTPEmail } from "../utils/generateOtp";
 import { setOTP, getOTP, deleteOTP } from "../config/redisClient";
 import { createAccessToken, createRefreshToken } from "../utils/jwt";
 import { Messages } from "../constants/messages";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { generateResetToken, sendPasswordResetEmail } from "../utils/passwordReset";
+
+import { AppError } from "../utils/AppError";
 
 export class UserService implements IUserService {
   private _userRepository: IUserRepository;
@@ -37,12 +40,14 @@ export class UserService implements IUserService {
 
   async register(userData: Omit<UserDTO, 'id'>, password: string): Promise<void> {
     const existing = await this._userRepository.findByEmail(userData.email);
-    if (existing) throw new Error(Messages.USER_EXISTS);
+    if (existing) throw new AppError(Messages.USER_EXISTS, HttpStatus.BAD_REQUEST);
+
+    const existingUsername = await this._userRepository.findByUsername(userData.username);
+    if (existingUsername) throw new AppError("Username already taken", HttpStatus.BAD_REQUEST);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tempUserData = {
-      firstName: userData.firstName,
-      lastName: userData.lastName,
+      username: userData.username,
       email: userData.email,
       password: hashedPassword,
     };
@@ -57,7 +62,7 @@ export class UserService implements IUserService {
   async verifyOTP(email: string, otp: string): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string | undefined };
+    user: { id: string; username: string; email: string; profileImageUrl?: string | undefined };
   }> {
     const storedOtp = await getOTP(`otp:${email}`);
     if (!storedOtp || storedOtp !== otp) throw new Error(Messages.OTP_INVALID);
@@ -79,16 +84,15 @@ export class UserService implements IUserService {
       throw new Error("User creation failed");
     }
 
-    const accessToken = createAccessToken(user.id, user.email);
-    const refreshToken = createRefreshToken(user.id, user.email);
+    const accessToken = createAccessToken(user.id, user.email, user.username);
+    const refreshToken = createRefreshToken(user.id, user.email, user.username);
 
     return {
       accessToken,
       refreshToken,
       user: {
         id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        username: user.username,
         email: user.email,
         profileImageUrl: user.profileImageUrl,
       },
@@ -111,8 +115,8 @@ export class UserService implements IUserService {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new Error(Messages.INVALID_CREDENTIALS);
 
-    const accessToken = createAccessToken(user.id, user.email);
-    const refreshToken = createRefreshToken(user.id, user.email);
+    const accessToken = createAccessToken(user.id, user.email, user.username);
+    const refreshToken = createRefreshToken(user.id, user.email, user.username);
 
     return { accessToken, refreshToken };
   }
@@ -121,13 +125,17 @@ export class UserService implements IUserService {
     return await this._userRepository.findByEmail(email);
   }
 
+  async checkUsername(username: string): Promise<boolean> {
+    const user = await this._userRepository.findByUsername(username);
+    return !!user;
+  }
+
   async getProfile(userId: string): Promise<UserDTO> {
     const user = await this._userRepository.findById(userId);
     if (!user) throw new Error(Messages.USER_NOT_FOUND);
     const dto: UserDTO = {
       id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      username: user.username,
       email: user.email,
       profileImageUrl: user.profileImageUrl,
     };
@@ -181,8 +189,7 @@ export class UserService implements IUserService {
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
     return {
       id: updated.id,
-      firstName: updated.firstName,
-      lastName: updated.lastName,
+      username: updated.username,
       email: updated.email,
       profileImageUrl: updated.profileImageUrl,
     };
@@ -200,8 +207,7 @@ export class UserService implements IUserService {
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
     return {
       id: updated.id,
-      firstName: updated.firstName,
-      lastName: updated.lastName,
+      username: updated.username,
       email: updated.email,
       profileImageUrl: updated.profileImageUrl,
     };

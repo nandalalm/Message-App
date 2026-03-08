@@ -1,12 +1,14 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import axiosInstance from "../api/axiosInstance";
+import type { User } from "../types/auth";
 
 interface AuthState {
   accessToken: string | null;
   loading: boolean;
   error: string | null;
-  user: { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null;
+  user: User | null;
+  isAuthChecked: boolean;
 }
 
 const initialState: AuthState = {
@@ -14,6 +16,7 @@ const initialState: AuthState = {
   loading: false,
   error: null,
   user: null,
+  isAuthChecked: false,
 };
 
 export const loginUser = createAsyncThunk(
@@ -60,7 +63,7 @@ export const fetchProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const res = await axiosInstance.get("/user/profileinfo");
-      return res.data.user as { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string };
+      return res.data.user as User;
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       return rejectWithValue(error.response?.data?.message || "Failed to fetch profile");
@@ -75,7 +78,7 @@ const authSlice = createSlice({
     setAccessToken: (state, action: PayloadAction<string>) => {
       state.accessToken = action.payload;
     },
-    setUser: (state, action: PayloadAction<{ id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string } | null>) => {
+    setUser: (state, action: PayloadAction<User | null>) => {
       state.user = action.payload;
     },
     logout: (state) => {
@@ -100,10 +103,12 @@ const authSlice = createSlice({
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.accessToken = action.payload;
+        state.isAuthChecked = true;
       })
       .addCase(refreshAccessToken.rejected, (state) => {
         state.accessToken = null;
         state.user = null;
+        state.isAuthChecked = true;
       })
       .addCase(logoutUser.fulfilled, (state) => {
         state.accessToken = null;

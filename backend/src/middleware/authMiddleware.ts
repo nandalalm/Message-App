@@ -5,6 +5,7 @@ import { HttpStatus } from "../constants/httpStatus";
 interface AuthenticatedUser {
   id: string;
   email: string;
+  username: string;
 }
 
 declare module 'express-serve-static-core' {
@@ -31,7 +32,8 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
     const decoded = jwt.verify(token, accessSecret) as JwtPayload & AuthenticatedUser;
     req.user = {
       id: decoded.id,
-      email: decoded.email
+      email: decoded.email,
+      username: decoded.username
     };
     next();
   } catch {

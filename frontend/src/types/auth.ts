@@ -4,8 +4,7 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  firstName: string;
-  lastName?: string;
+  username: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -13,8 +12,7 @@ export interface RegisterData {
 
 export interface User {
   id: string;
-  firstName: string;
-  lastName?: string;
+  username: string;
   email: string;
   profileImageUrl?: string;
 }

@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { register, verifyOtp, resendOtp, login, refreshToken, getHome, logout, forgotPassword, resetPassword } from "../controllers/authController";
+import { register, verifyOtp, resendOtp, login, refreshToken, getHome, logout, forgotPassword, resetPassword, checkUsername } from "../controllers/authController";
 import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
 router.post("/register", register);
+router.post("/check-username", checkUsername);
 router.post("/verify-otp", verifyOtp);
 router.post("/resend-otp", resendOtp);
 router.post("/login", login);

@@ -10,9 +10,20 @@ const userService = container.get<IUserService>(TYPES.UserService);
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
-    const result = await userService.register({ firstName, lastName, email }, password);
+    const { username, email, password } = req.body;
+    const result = await userService.register({ username, email }, password);
     res.status(HttpStatus.CREATED).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const checkUsername = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(HttpStatus.BAD_REQUEST).json({ message: "Username is required" });
+    const exists = await userService.checkUsername(username);
+    res.status(HttpStatus.OK).json({ exists });
   } catch (err) {
     next(err);
   }
@@ -124,6 +135,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     interface CustomJwtPayload extends JwtPayload {
       id: string;
       email: string;
+      username: string;
     }
     
     const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
@@ -140,7 +152,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: "Server configuration error" });
       }
       
-      const accessToken = jwt.sign({ id: payload.id, email: payload.email }, accessSecret, {
+      const accessToken = jwt.sign({ id: payload.id, email: payload.email, username: payload.username }, accessSecret, {
         expiresIn: "15m",
       });
 
@@ -158,6 +170,7 @@ export const getHome = async (req: Request, res: Response, next: NextFunction) =
       message: Messages.WELCOME_HOME, 
       user: {
         id: user?.id,
+        username: user?.username,
         email: user?.email
       }
     });

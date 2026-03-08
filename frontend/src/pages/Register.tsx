@@ -8,8 +8,7 @@ import type { RegisterData } from "../types/auth";
 const Register = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -32,11 +31,26 @@ const Register = () => {
     try {
       const { confirmPassword, ...registerData } = result.data as typeof formData;
       void confirmPassword;
+      
+      // Mandatory backend check for username availability
+      const checkRes = await AuthApi.checkUsername(registerData.username);
+      if (checkRes.exists) {
+        setErrors({ username: "Username already taken" });
+        setLoading(false);
+        return;
+      }
+
       await AuthApi.register(registerData as RegisterData);
       navigate("/verify-otp", { state: { email: registerData.email } });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || "Registration failed");
+      const message = error.response?.data?.message || "Registration failed";
+      
+      if (message === "User already exists.") {
+        setErrors({ email: "This email is already registered" });
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -55,29 +69,15 @@ const Register = () => {
           <div>
             <input
               type="text"
-              name="firstName"
-              placeholder="First Name"
+              name="username"
+              placeholder="Username"
               className={`border w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.firstName ? "border-red-500" : "border-gray-300"
+                errors.username ? "border-red-500" : "border-gray-300"
               }`}
-              value={formData.firstName}
+              value={formData.username}
               onChange={handleChange}
             />
-            {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
-          </div>
-
-          <div>
-            <input
-              type="text"
-              name="lastName"
-              placeholder="Last Name (Optional)"
-              className={`border w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.lastName ? "border-red-500" : "border-gray-300"
-              }`}
-              value={formData.lastName}
-              onChange={handleChange}
-            />
-            {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
           </div>
 
           <div>

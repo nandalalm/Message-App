@@ -60,4 +60,8 @@ export class AuthApi {
     const response = await axiosInstance.get("/auth/home");
     return response.data.user;
   }
+  static async checkUsername(username: string): Promise<{ exists: boolean }> {
+    const response = await axiosInstance.post("/auth/check-username", { username });
+    return response.data;
+  }
 }

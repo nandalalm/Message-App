@@ -151,13 +151,13 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
 
     const messageData = {
       senderId: user.id,
-      senderName: `${user.firstName} ${user.lastName || ""}`.trim(),
+      senderName: user.username,
       content: newMessage.trim(),
     };
 
     socket.emit("sendMessage", messageData);
     setNewMessage("");
-    socket.emit("typing", { senderName: user.firstName, isTyping: false });
+    socket.emit("typing", { senderName: user.username, isTyping: false });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,7 +177,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       setLocalImageMessage({
         id: tempId,
         senderId: user.id,
-        senderName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        senderName: user.username,
         imageUrl: previewUrl,
         createdAt: new Date().toISOString(),
       });
@@ -186,7 +186,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       if (results.length > 0) {
         const messageData = {
           senderId: user.id,
-          senderName: `${user.firstName} ${user.lastName || ""}`.trim(),
+          senderName: user.username,
           content: "Sent an image",
           imageUrl: results[0].url,
           s3Key: results[0].id
@@ -365,16 +365,17 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
           <input
             type="text"
             value={newMessage}
+            disabled={!user}
             onChange={(e) => {
               setNewMessage(e.target.value);
-              socket?.emit("typing", { senderName: user?.firstName || "Someone", isTyping: true });
+              socket?.emit("typing", { senderName: user?.username || "Someone", isTyping: true });
               if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-              typingTimeoutRef.current = setTimeout(() => socket?.emit("typing", { senderName: user?.firstName || "Someone", isTyping: false }), 2000);
+              typingTimeoutRef.current = setTimeout(() => socket?.emit("typing", { senderName: user?.username || "Someone", isTyping: false }), 2000);
             }}
-            placeholder="Write a message..."
-            className="flex-1 px-3 py-2.5 sm:px-5 sm:py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none min-w-0"
+            placeholder={user ? "Write a message..." : "Loading profile..."}
+            className="flex-1 px-3 py-2.5 sm:px-5 sm:py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none min-w-0 disabled:opacity-50"
           />
-          <button type="submit" disabled={!newMessage.trim()} className="p-2.5 sm:p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200 group shrink-0">
+          <button type="submit" disabled={!newMessage.trim() || !user} className="p-2.5 sm:p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200 group shrink-0">
             <Send size={20} className="sm:w-[22px] sm:h-[22px] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </div>

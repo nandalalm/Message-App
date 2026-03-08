@@ -24,9 +24,7 @@ const Profile = () => {
     };
   }, [localPreviewUrl]);
 
-  const displayName = user?.firstName 
-    ? (user?.lastName ? `${user.firstName} ${user.lastName}` : user.firstName)
-    : (user?.email ? user.email.split("@")[0] : "User");
+  const displayName = user?.username || (user?.email ? user.email.split("@")[0] : "User");
   const email = user?.email ?? "";
   const profileImageUrl = user?.profileImageUrl;
 

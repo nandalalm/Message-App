@@ -18,7 +18,7 @@ interface Poll {
   allowMultiple: boolean;
   hasVoted: boolean;
   votedOptionIndices?: number[];
-  voters: { userName: string; optionIndex: number }[];
+  voters: { userId: string; userName: string; optionIndex: number }[];
 }
 
 interface Toast {
@@ -102,6 +102,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const pollsEndRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isInitialLoadRef = useRef(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const addToast = (message: string, type: "success" | "error") => {
@@ -119,6 +120,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     // Reset pagination on filter change
     setHasMore(true);
     setPolls([]);
+    setIsInitialLoading(true);
     socket.emit("getPolls", { userId: user.id, filterType: filter, limit: 20, skip: 0 });
   }, [socket, user, filter]);
 
@@ -128,14 +130,17 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     const handlePollsList = (list: Poll[]) => {
       if (list.length < 20) setHasMore(false);
       
+      const reversedList = [...list].reverse(); // Backend returns newest first, we want newest at bottom
+
       const updateData = () => {
         setPolls(prev => {
           const existingIds = new Set(prev.map(p => p.id));
-          const newPolls = list.filter(p => !existingIds.has(p.id));
-          const combined = [...newPolls, ...prev]; // Older polls at top
+          const newPolls = reversedList.filter(p => !existingIds.has(p.id));
+          const combined = [...newPolls, ...prev]; // Older polls (from pagination) at top
           return combined.slice(-100);
         });
         setIsLoadingMore(false);
+        setIsInitialLoading(false);
       };
 
       if (isLoadingMore) {
@@ -155,7 +160,23 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       addToast("Poll created successfully!", "success");
     };
     const handleVoteUpdated = (updatedPoll: Poll) => {
-      setPolls(prev => prev.map(p => p.id === updatedPoll.id ? updatedPoll : p));
+      setPolls(prev => prev.map(p => {
+        if (p.id === updatedPoll.id) {
+          // Robust derive: find my own votes in the public voter list
+          const myVotes = updatedPoll.voters
+            .filter(v => v.userId === user?.id)
+            .map(v => v.optionIndex);
+          
+          return {
+            ...p,
+            options: updatedPoll.options,
+            voters: updatedPoll.voters,
+            hasVoted: myVotes.length > 0,
+            votedOptionIndices: myVotes,
+          };
+        }
+        return p;
+      }));
     };
     const handleError = (data: { message: string }) => {
       addToast(data.message, "error");
@@ -184,6 +205,19 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     }
   }, [polls]);
 
+  // Global click outside listener to clear focus/selection from any option
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // If we click anywhere that isn't a button or input, blur the currently focused element
+      const target = e.target as HTMLElement;
+      if (!target.closest('button') && !target.closest('input') && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     
@@ -204,10 +238,12 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     if (!socket || !user) return;
 
     const trimmedQuestion = newQuestion.trim();
-    if (trimmedQuestion && /^\d/.test(trimmedQuestion)) {
-      addToast("Question cannot start with a number.", "error");
+    if (!trimmedQuestion) {
+      addToast("Question cannot be empty.", "error");
       return;
     }
+
+    
     if (/[^A-Za-z0-9\s?!.]/.test(trimmedQuestion)) {
       addToast("Only ? ! . special characters allowed in question.", "error");
       return;
@@ -216,9 +252,12 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     const optionsToProcess = [...newOptions];
     if (includeNone) optionsToProcess.push("None of the above");
 
-    const filteredOptions = optionsToProcess.map(o => o.trim()).filter(o => o !== "");
+    const filteredOptions = optionsToProcess
+      .map(o => o.trim())
+      .filter(o => o !== "");
+
     if (filteredOptions.length < 2) {
-      addToast("At least 2 options required.", "error");
+      addToast("At least 2 non-empty options are required.", "error");
       return;
     }
 
@@ -232,7 +271,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
     socket.emit("createPoll", {
       creatorId: user.id,
-      creatorName: `${user.firstName} ${user.lastName || ""}`.trim(),
+      creatorName: user.username,
       question: trimmedQuestion,
       options: filteredOptions,
       allowMultiple: allowMultiple,
@@ -247,11 +286,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   const handleVote = (pollId: string, optionIndex: number) => {
     if (!socket || !user) return;
-    socket.emit("vote", { pollId, optionIndex, userId: user.id, userName: `${user.firstName} ${user.lastName || ""}`.trim() });
+    socket.emit("vote", { pollId, optionIndex, userId: user.id, userName: user.username });
   };
 
   const addOption = () => {
-    if (newOptions.length < 5) setNewOptions([...newOptions, ""]);
+    if (newOptions.length < 6) setNewOptions([...newOptions, ""]);
   };
 
   return (
@@ -278,8 +317,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
           <div>
-            <h2 className="font-bold text-lg max-sm:text-sm leading-none">All Polls</h2>
-            <p className="text-amber-100 text-[10px] max-sm:text-[8px] font-medium mt-1">10 polls per user daily</p>
+            <h2 className="font-bold text-lg max-sm:text-sm leading-none pt-1">All Polls</h2>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -293,7 +331,14 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             </button>
           )}
           {!isCreating && (
-            <button onClick={() => setIsCreating(true)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white"><Plus size={20} /></button>
+            <button 
+              onClick={() => setIsCreating(true)} 
+              disabled={!user}
+              className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white disabled:opacity-50"
+              title={user ? "Create Poll" : "Loading profile..."}
+            >
+              <Plus size={20} />
+            </button>
           )}
         </div>
       </div>
@@ -354,8 +399,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                 />
               ))}
               <div className="flex flex-wrap gap-4 pt-1">
-                {newOptions.length < 5 && (
-                  <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option</button>
+                {newOptions.length < 6 && (
+                  <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option (Max 6)</button>
                 )}
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="includeNone" checked={includeNone} onChange={(e) => setIncludeNone(e.target.checked)} className="w-3 h-3 text-amber-500 rounded" />
@@ -372,81 +417,111 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
             </div>
           </form>
+        ) : isInitialLoading ? (
+          <div className="space-y-4 animate-pulse">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 space-y-3">
+                <div className="h-3 bg-gray-200 rounded-full w-24" />
+                <div className="h-4 bg-gray-200 rounded-full w-3/4" />
+                <div className="space-y-2">
+                  <div className="h-10 bg-gray-100 rounded-xl" />
+                  <div className="h-10 bg-gray-100 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : polls.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2 py-20">
+            <Vote size={48} className="opacity-20" />
+            <p className="text-sm font-medium italic">No polls found in this category.</p>
+          </div>
         ) : (
-          polls.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2 py-20">
-              <Vote size={48} className="opacity-20" />
-              <p className="text-sm font-medium italic">No polls found in this category.</p>
-            </div>
-          ) : (
-            polls.map((poll) => {
-              const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
-              const isCreator = poll.creatorId === user?.id;
+          polls.map((poll) => {
+            const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
+            const isCreator = poll.creatorId === user?.id;
 
-              return (
-                <div key={poll.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all hover:scale-[1.01]">
-                  <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black text-amber-600 uppercase tracking-tighter bg-amber-50 px-1.5 py-0.5 rounded">
-                          {isCreator ? "MY POLL" : poll.creatorName.toUpperCase()}
-                        </span>
-                      </div>
-                      <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1">{poll.question}</h3>
+            return (
+              <div key={poll.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all hover:scale-[1.01]">
+                <div className="flex justify-between items-start">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black text-amber-600 uppercase tracking-tighter bg-amber-50 px-1.5 py-0.5 rounded">
+                        {isCreator ? "MY POLL" : poll.creatorName.toUpperCase()}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {poll.options.map((opt, idx) => {
-                      const percentage = totalVotes > 0 ? (opt.votes / totalVotes) * 100 : 0;
-                      const hasVotedThis = poll.votedOptionIndices?.includes(idx);
-
-                      return (
-                        <div key={idx}>
-                          <button
-                            onClick={() => handleVote(poll.id, idx)}
-                            className={`w-full relative h-10 rounded-lg overflow-hidden border transition-all ${hasVotedThis
-                              ? "bg-amber-50 border-amber-300"
-                              : "bg-white border-gray-100 hover:border-amber-200"
-                              } cursor-pointer`}
-                          >
-                            <div className="absolute top-0 left-0 h-full bg-amber-100/50 transition-all duration-700" style={{ width: `${percentage}%` }} />
-                            <div className="relative z-10 flex justify-between items-center px-3 h-full text-[12px] max-sm:text-[11px]">
-                              <div className="flex items-center gap-2">
-                                <span className={`font-semibold ${hasVotedThis ? "text-amber-900" : "text-gray-700"}`}>{opt.text}</span>
-                                {hasVotedThis && <CheckCircle2 size={12} className="max-sm:w-2.5 max-sm:h-2.5 text-amber-600" />}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {(poll.hasVoted || isCreator) && opt.votes > 0 && <span className="text-amber-700 font-black text-[10px] max-sm:text-[9px]">{Math.round(percentage)}%</span>}
-                                <span className="text-gray-400 font-medium">({opt.votes})</span>
-                              </div>
-                            </div>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="text-[10px] font-bold italic">
-                      {poll.hasVoted ? (
-                        <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
-                      ) : (
-                        <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setActiveVoterModal(poll)}
-                      className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 hover:underline transition-colors"
-                    >
-                      <Users size={11} />
-                      View Votes
-                    </button>
+                    <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1">{poll.question}</h3>
                   </div>
                 </div>
-              );
-            })
-          )
+
+                <div className="space-y-2">
+                  {poll.options.map((opt, idx) => {
+                    const percentage = totalVotes > 0 ? (opt.votes / totalVotes) * 100 : 0;
+                    const hasVotedThis = poll.votedOptionIndices?.includes(idx);
+
+                    return (
+                      <div key={idx} className="relative group/opt">
+                        <button
+                          onClick={(e) => {
+                            handleVote(poll.id, idx);
+                            (e.currentTarget as HTMLButtonElement).blur();
+                          }}
+                          className={`w-full relative h-[42px] sm:h-11 rounded-xl overflow-hidden border transition-all duration-300 ${
+                            hasVotedThis 
+                              ? "border-gray-200 bg-white" 
+                              : "border-gray-100 bg-white hover:bg-gray-50 hover:border-gray-200"
+                          } outline-none focus:outline-none ring-0 focus:ring-0 active:scale-[0.98] select-none`}
+                        >
+                          {/* Progress Bar - Shared Yellow Shade for all users */}
+                          <div 
+                            className={`absolute top-0 left-0 h-full transition-all duration-700 ease-out bg-amber-500/15`} 
+                            style={{ width: `${percentage}%` }} 
+                          />
+                          
+                          <div className="relative z-10 flex justify-between items-center px-4 h-full text-[13px] max-sm:text-[12px]">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                hasVotedThis ? "border-amber-500 bg-amber-500 text-white" : "border-gray-300 bg-white"
+                              }`}>
+                                {hasVotedThis && <CheckCircle2 size={12} strokeWidth={3} className="animate-in zoom-in duration-300 text-white" />}
+                              </div>
+                              <span className={`font-semibold truncate transition-colors ${hasVotedThis ? "text-amber-900" : "text-gray-700"}`}>
+                                {opt.text}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              {(poll.hasVoted || isCreator) && (
+                                <span className={`font-bold text-[11px] ${hasVotedThis ? "text-amber-700" : "text-gray-500"}`}>
+                                  {Math.round(percentage)}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[10px] font-bold italic">
+                    {poll.hasVoted ? (
+                      <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
+                    ) : (
+                      <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setActiveVoterModal(poll)}
+                    className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 hover:underline transition-colors"
+                  >
+                    <Users size={11} />
+                    View Votes
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
         {isLoadingMore && (
           <div className="flex flex-col items-center justify-center py-4 animate-fade-in">

@@ -11,6 +11,10 @@ export class UserRepository extends BaseRepository<IUser> implements IUserReposi
     return this.findOne({ email });
   }
 
+  async findByUsername(username: string): Promise<IUser | null> {
+    return this.model.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
+  }
+
   async createUser(user: IUser): Promise<IUser> {
     return this.create(user);
   }

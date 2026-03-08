@@ -6,8 +6,9 @@ export interface IUserService {
   verifyOTP(email: string, otp: string): Promise<{ 
     accessToken: string; 
     refreshToken: string; 
-    user: { id: string; firstName: string; lastName?: string; email: string; profileImageUrl?: string | undefined };
+    user: { id: string; username: string; email: string; profileImageUrl?: string | undefined };
   }>;
+  checkUsername(username: string): Promise<boolean>;
   resendOTP(email: string): Promise<void>;
   login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string }>;
   getUserByEmail(email: string): Promise<IUser | null>;

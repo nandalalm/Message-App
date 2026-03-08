@@ -13,9 +13,7 @@ const Navbar = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const displayName = user?.firstName
-    ? (user?.lastName ? `${user.firstName} ${user.lastName}` : user.firstName)
-    : (user?.email ? user.email.split('@')[0] : "User");
+  const displayName = user?.username || (user?.email ? user.email.split('@')[0] : "User");
   const profileImageUrl = user?.profileImageUrl;
 
   const handleLogoutClick = () => {

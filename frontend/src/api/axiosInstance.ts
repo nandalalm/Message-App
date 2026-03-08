@@ -26,6 +26,10 @@ axiosInstance.interceptors.response.use(
     if (originalRequest.url?.includes('/auth/refresh-token')) {
       return Promise.reject(error);
     }
+    if (error.response?.status === 500) {
+      window.location.href = '/500';
+      return Promise.reject(error);
+    }
     if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       const authHeader = originalRequest.headers?.Authorization || originalRequest.headers?.authorization;
       if (!authHeader) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
+import { useAppSelector } from "../redux/store";
 import Navbar from "../components/Navbar";
 import Chat from "../components/Chat";
 import PollComponent from "../components/Poll";
@@ -24,7 +25,11 @@ const Home = () => {
     }, 400); // Wait for fade-out duration
   };
 
+  const { accessToken } = useAppSelector((state) => state.auth);
+
   useEffect(() => {
+    if (!accessToken) return;
+
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
     const socketUrl = backendUrl || apiBaseUrl?.replace("/api", "") || "http://localhost:5000";
@@ -32,6 +37,7 @@ const Home = () => {
     console.log("🌐 [Home] Attempting socket connection to:", socketUrl);
 
     const newSocket = io(socketUrl, {
+      auth: { token: accessToken },
       withCredentials: true,
       transports: ["polling", "websocket"], // Ensure fallback for local development
     });
@@ -55,7 +61,7 @@ const Home = () => {
       console.log("🔌 [Home] Disconnecting socket...");
       newSocket.disconnect();
     };
-  }, []);
+  }, [accessToken]);
 
   const isMobile = windowWidth <= 1030;
 
