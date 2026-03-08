@@ -28,10 +28,6 @@ interface Toast {
   type: "success" | "error";
 }
 
-interface PollProps {
-  socket: Socket | null;
-}
-
 const PollTimer: React.FC<{ expiresAt: string; onConclude?: () => void }> = ({ expiresAt, onConclude }) => {
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -126,7 +122,13 @@ const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, o
   );
 };
 
-const PollComponent: React.FC<PollProps> = ({ socket }) => {
+interface PollProps {
+  socket: Socket | null;
+  onSwitch?: () => void;
+  showSwitch?: boolean;
+}
+
+const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -268,9 +270,19 @@ const PollComponent: React.FC<PollProps> = ({ socket }) => {
             <p className="text-amber-100 text-[10px] font-medium mt-1">Maximum 100 recent polls</p>
           </div>
         </div>
-        {!isCreating && (
-          <button onClick={() => setIsCreating(true)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white"><Plus size={20} /></button>
-        )}
+        <div className="flex items-center gap-2">
+          {showSwitch && (
+            <button
+              onClick={onSwitch}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10"
+            >
+              Switch to Chat
+            </button>
+          )}
+          {!isCreating && (
+            <button onClick={() => setIsCreating(true)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white"><Plus size={20} /></button>
+          )}
+        </div>
       </div>
 
       {/* Filter Bar */}

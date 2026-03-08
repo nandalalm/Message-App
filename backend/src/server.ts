@@ -36,7 +36,6 @@ app.use("/api/images", imageRoutes);
 app.use("/api/user", userRoutes);
 app.use(errorMiddleware);
 
-// Initialize Socket.IO
 initSocket(httpServer);
 
 const PORT = process.env.PORT || 5000;

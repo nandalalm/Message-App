@@ -13,9 +13,11 @@ interface Message {
 
 interface ChatProps {
   socket: Socket | null;
+  onSwitch?: () => void;
+  showSwitch?: boolean;
 }
 
-const Chat: React.FC<ChatProps> = ({ socket }) => {
+const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -109,10 +111,18 @@ const Chat: React.FC<ChatProps> = ({ socket }) => {
         <div className="p-2 bg-white/20 rounded-lg">
           <MessageSquare className="text-white" size={20} />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="text-white font-bold text-lg">Global Chat</h2>
           <p className="text-indigo-100 text-xs font-medium">Connect with everyone</p>
         </div>
+        {showSwitch && (
+          <button
+            onClick={onSwitch}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10"
+          >
+            Switch to Polls
+          </button>
+        )}
       </div>
 
       {/* Messages Area */}

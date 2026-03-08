@@ -13,7 +13,7 @@ export interface IPoll extends Document {
   expiresAt: Date;
   isActive: boolean;
   allowMultiple: boolean;
-  voters: { userId: string; userName: string; optionIndex: number }[]; // Track who voted for what
+  voters: { userId: string; userName: string; optionIndex: number }[]; 
   createdAt: Date;
   updatedAt: Date;
 }

@@ -6,6 +6,23 @@ import PollComponent from "../components/Poll";
 
 const Home = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [activeTab, setActiveTab] = useState<"chat" | "poll">("chat");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handleSwitch = () => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveTab((prev) => (prev === "chat" ? "poll" : "chat"));
+      setIsTransitioning(false);
+    }, 400); // Wait for fade-out duration
+  };
 
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -40,21 +57,41 @@ const Home = () => {
     };
   }, []);
 
+  const isMobile = windowWidth <= 1030;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
       <div className="max-w-[1400px] mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          {/* Chat Column */}
-          <section className="animate-slide-up h-full">
-            <Chat socket={socket} />
-          </section>
+        {!isMobile ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            {/* Chat Column */}
+            <section className="animate-slide-up h-full">
+              <Chat socket={socket} />
+            </section>
 
-          {/* Polling Column */}
-          <section className="animate-slide-up h-full" style={{ animationDelay: '100ms' }}>
-            <PollComponent socket={socket} />
-          </section>
-        </div>
+            {/* Polling Column */}
+            <section className="animate-slide-up h-full" style={{ animationDelay: '100ms' }}>
+              <PollComponent socket={socket} />
+            </section>
+          </div>
+        ) : (
+          <div className={`max-w-[600px] mx-auto transition-all duration-400 ${isTransitioning ? "animate-fade-out" : "animate-fade-in"}`}>
+            {activeTab === "chat" ? (
+              <Chat 
+                socket={socket} 
+                showSwitch={true} 
+                onSwitch={handleSwitch} 
+              />
+            ) : (
+              <PollComponent 
+                socket={socket} 
+                showSwitch={true} 
+                onSwitch={handleSwitch} 
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

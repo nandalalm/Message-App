@@ -25,7 +25,6 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
         query = { creatorId: userId };
         break;
       default:
-        // All polls (latest 100)
         query = {};
     }
 

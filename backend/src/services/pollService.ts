@@ -17,19 +17,16 @@ export class PollService implements IPollService {
   }
 
   async createPoll(data: CreatePollDTO): Promise<PollDTO> {
-    // 1. Global Active Limit (10)
     const activeCount = await this._pollRepository.getActivePollCount();
     if (activeCount >= 10) {
       throw new Error("Maximum global active polls (10) reached. Please wait for one to conclude.");
     }
 
-    // 2. Per-User Active Limit (1)
     const userActiveCount = await this._pollRepository.getUserActivePollCount(data.creatorId);
     if (userActiveCount >= 1) {
       throw new Error("You already have an active poll. You can only have one active poll at a time.");
     }
 
-    // 3. Per-User Daily Limit (3)
     const userTodayCount = await this._pollRepository.getTodayPollCountForUser(data.creatorId);
     if (userTodayCount >= 3) {
       throw new Error("Daily poll limit (3) reached. You can create more polls tomorrow.");

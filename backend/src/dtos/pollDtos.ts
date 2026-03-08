@@ -14,7 +14,7 @@ export interface PollDTO {
   allowMultiple: boolean;
   hasVoted: boolean;
   votedOptionIndices: number[];
-  voters: { userName: string; optionIndex: number }[]; // For the voter list modal
+  voters: { userName: string; optionIndex: number }[];
 }
 
 export interface CreatePollDTO {
