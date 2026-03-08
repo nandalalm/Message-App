@@ -26,7 +26,6 @@ export const initSocket = (server: HTTPServer) => {
 
   io.on("connection", (socket) => {
     const user = socket.data.user;
-    console.log(`🔌 New authenticated client connected: ${socket.id} (${user?.email})`);
 
     // Message Events
     socket.on("getChatHistory", async (data?: { limit?: number; skip?: number }) => {
@@ -129,7 +128,6 @@ export const initSocket = (server: HTTPServer) => {
     });
 
     socket.on("disconnect", () => {
-      console.log(`🔌 Client disconnected: ${socket.id}`);
     });
   });
 

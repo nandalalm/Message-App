@@ -19,7 +19,6 @@ export const connectDB = async (): Promise<void> => {
         const collInfo = collections.find(c => c.name === name) as { name: string; options?: { capped?: boolean } };
         if (collInfo) {
           if (!collInfo.options || !collInfo.options.capped) {
-            console.log(`Converting ${name} to capped collection...`);
             await db.command({ convertToCapped: name, size, max });
           }
         }

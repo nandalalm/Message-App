@@ -34,7 +34,6 @@ const Home = () => {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
     const socketUrl = backendUrl || apiBaseUrl?.replace("/api", "") || "http://localhost:5000";
 
-    console.log("🌐 [Home] Attempting socket connection to:", socketUrl);
 
     const newSocket = io(socketUrl, {
       auth: { token: accessToken },
@@ -43,7 +42,6 @@ const Home = () => {
     });
 
     newSocket.on("connect", () => {
-      console.log("✅ [Home] Socket connected!", newSocket.id);
       setSocket(newSocket);
     });
 
@@ -58,7 +56,6 @@ const Home = () => {
     setSocket(newSocket); // Set it anyway so children see the instance and its internal state
 
     return () => {
-      console.log("🔌 [Home] Disconnecting socket...");
       newSocket.disconnect();
     };
   }, [accessToken]);
