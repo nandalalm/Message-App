@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Send, MessageSquare } from "lucide-react";
+import { Send, MessageSquare, ArrowLeftRight } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
 interface Message {
@@ -28,6 +28,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevScrollHeightRef = useRef<number>(0);
+  const isInitialLoadRef = useRef(true);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -35,29 +36,41 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
 
   useEffect(() => {
     if (!socket) return;
-
-    // Initial load: 20 messages
     socket.emit("getChatHistory", { limit: 20, skip: 0 });
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
 
     const handleChatHistory = (history: Message[]) => {
       if (history.length < 20) setHasMore(false);
       
-      setMessages((prev) => {
-        // Find messages in history that aren't already in state
-        const existingIds = new Set(prev.map(m => m.id));
-        const newMessages = history.filter(m => !existingIds.has(m.id));
-        
-        if (newMessages.length === 0) return prev;
-        
-        // Merge and sort by creation time
-        const combined = [...prev, ...newMessages].sort((a, b) => 
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-        
-        return combined.slice(-100); // Keep max 100
-      });
-      
-      setIsLoadingMore(false);
+      const updateData = () => {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = history.filter(m => !existingIds.has(m.id));
+          
+          if (newMessages.length === 0) return prev;
+          
+          const combined = [...prev, ...newMessages].sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          
+          return combined.slice(-100);
+        });
+        setIsLoadingMore(false);
+      };
+
+      if (isLoadingMore) {
+        // Enforce 1s delay for pagination load
+        setTimeout(updateData, 1000);
+      } else {
+        updateData();
+        if (isInitialLoadRef.current) {
+          isInitialLoadRef.current = false;
+          setTimeout(() => scrollToBottom("auto"), 100);
+        }
+      }
     };
 
     const handleNewMessage = (message: Message) => {
@@ -81,7 +94,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       socket.off("newMessage", handleNewMessage);
       socket.off("userTyping", handleUserTyping);
     };
-  }, [socket]);
+  }, [socket, isLoadingMore]);
 
   useEffect(() => {
     if (messagesContainerRef.current && prevScrollHeightRef.current > 0) {
@@ -101,8 +114,10 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, typingUser]);
+    if (typingUser) {
+      scrollToBottom();
+    }
+  }, [typingUser]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,16 +165,17 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
         <div className="p-2 bg-white/20 rounded-lg">
           <MessageSquare className="text-white" size={20} />
         </div>
-        <div className="flex-1">
-          <h2 className="text-white font-bold text-lg">Global Chat</h2>
-          <p className="text-indigo-100 text-xs font-medium">Connect with everyone</p>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-white font-bold text-lg max-sm:text-sm truncate">Global Chat</h2>
+          <p className="text-indigo-100 text-xs font-medium max-sm:text-[9px] truncate">Connect with everyone</p>
         </div>
         {showSwitch && (
           <button
             onClick={onSwitch}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10"
+            className="flex items-center gap-2 px-3 py-1.5 max-sm:px-2 max-sm:py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] max-sm:text-[9px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0"
           >
-            Switch to Polls
+            <ArrowLeftRight size={14} className="max-sm:w-3 max-sm:h-3" />
+            <span className="max-sm:hidden">Switch to </span>Polls
           </button>
         )}
       </div>
@@ -171,8 +187,8 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
         className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 scrollbar-hide"
       >
         {isLoadingMore && (
-          <div className="text-center py-2 text-[10px] font-bold text-indigo-400 animate-pulse uppercase tracking-widest">
-            Loading older messages...
+          <div className="flex flex-col items-center justify-center py-2 animate-fade-in">
+            <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-1" />
           </div>
         )}
         {messages.map((msg) => {
@@ -183,16 +199,16 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
               className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
             >
               <div className="flex items-center gap-1.5 mb-0.5 px-1">
-                <span className={`text-[11px] font-black uppercase tracking-tighter ${isMe ? "text-indigo-600" : "text-amber-600"
+                <span className={`text-[11px] max-sm:text-[10px] font-black uppercase tracking-tighter ${isMe ? "text-indigo-600" : "text-amber-600"
                   }`}>
                   {isMe ? "YOU" : msg.senderName}
                 </span>
-                <span className="text-[9px] text-gray-400 font-medium">
+                <span className="text-[9px] max-sm:text-[8px] text-gray-400 font-medium">
                   {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
               <div
-                className={`max-w-[90%] px-4 py-2 rounded-xl text-[13px] leading-relaxed shadow-sm transition-all border ${isMe
+                className={`max-w-[90%] px-4 py-2 max-sm:px-3 max-sm:py-1.5 rounded-xl text-[13px] max-sm:text-[12px] leading-relaxed shadow-sm transition-all border ${isMe
                   ? "bg-indigo-600 text-white border-indigo-500 rounded-tr-none"
                   : "bg-white text-gray-800 border-gray-100 rounded-tl-none"
                   }`}
@@ -225,7 +241,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
             value={newMessage}
             onChange={handleTyping}
             placeholder="Type your message..."
-            className="flex-1 px-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+            className="flex-1 px-4 py-2.5 max-sm:px-3 max-sm:py-2 bg-gray-100 border-none rounded-xl text-sm max-sm:text-xs focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
           />
           <button
             type="submit"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter, Users } from "lucide-react";
+import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter, Users, ArrowLeftRight } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 
 interface PollOption {
@@ -152,21 +152,33 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   useEffect(() => {
     if (!socket || !user) return;
-
     // Reset pagination on filter change
     setHasMore(true);
     setPolls([]);
     socket.emit("getPolls", { userId: user.id, filterType: filter, limit: 20, skip: 0 });
+  }, [socket, user, filter]);
+
+  useEffect(() => {
+    if (!socket || !user) return;
 
     const handlePollsList = (list: Poll[]) => {
       if (list.length < 20) setHasMore(false);
-      setPolls(prev => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const newPolls = list.filter(p => !existingIds.has(p.id));
-        const combined = [...prev, ...newPolls]; // No sort needed if backend handles it
-        return combined.slice(0, 100);
-      });
-      setIsLoadingMore(false);
+      
+      const updateData = () => {
+        setPolls(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newPolls = list.filter(p => !existingIds.has(p.id));
+          const combined = [...prev, ...newPolls];
+          return combined.slice(0, 100);
+        });
+        setIsLoadingMore(false);
+      };
+
+      if (isLoadingMore) {
+        setTimeout(updateData, 1000);
+      } else {
+        updateData();
+      }
     };
 
     const handlePollCreated = (poll: Poll) => {
@@ -195,7 +207,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       socket.off("voteUpdated", handleVoteUpdated);
       socket.off("error", handleError);
     };
-  }, [socket, user, filter]);
+  }, [socket, user, filter, isLoadingMore]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -289,17 +301,18 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
           <div>
-            <h2 className="font-bold text-lg leading-none">Live Polls</h2>
-            <p className="text-amber-100 text-[10px] font-medium mt-1">Maximum 100 recent polls</p>
+            <h2 className="font-bold text-lg max-sm:text-sm leading-none">Live Polls</h2>
+            <p className="text-amber-100 text-[10px] max-sm:text-[8px] font-medium mt-1">Maximum 100 recent polls</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {showSwitch && (
             <button
               onClick={onSwitch}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10"
+              className="flex items-center gap-2 px-3 py-1.5 max-sm:px-2 max-sm:py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] max-sm:text-[9px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0"
             >
-              Switch to Chat
+              <ArrowLeftRight size={14} className="max-sm:w-3 max-sm:h-3" />
+              <span className="max-sm:hidden">Switch to </span>Chat
             </button>
           )}
           {!isCreating && (
@@ -320,7 +333,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all whitespace-nowrap ${filter === f.id ? "bg-amber-500 text-white" : "bg-white text-amber-700 hover:bg-amber-100 border border-amber-100"}`}
+              className={`flex items-center gap-1.5 px-3 py-1 max-sm:px-2.5 max-sm:py-0.5 rounded-full text-[10px] max-sm:text-[9px] font-bold transition-all whitespace-nowrap ${filter === f.id ? "bg-amber-500 text-white" : "bg-white text-amber-700 hover:bg-amber-100 border border-amber-100"}`}
             >
               {f.icon} {f.label}
             </button>
@@ -412,7 +425,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                         </span>
                         {isConcluded && <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-100 px-1.5 py-0.5 rounded">FINISHED</span>}
                       </div>
-                      <h3 className="text-gray-800 font-bold text-sm leading-tight mt-1">{poll.question}</h3>
+                      <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1">{poll.question}</h3>
                     </div>
                     <PollTimer expiresAt={poll.expiresAt} onConclude={() => { /* maybe refresh list */ }} />
                   </div>
@@ -432,13 +445,13 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                               } ${isConcluded ? "cursor-default" : "cursor-pointer"}`}
                           >
                             <div className="absolute top-0 left-0 h-full bg-amber-100/50 transition-all duration-700" style={{ width: `${percentage}%` }} />
-                            <div className="relative z-10 flex justify-between items-center px-3 h-full text-[12px]">
+                            <div className="relative z-10 flex justify-between items-center px-3 h-full text-[12px] max-sm:text-[11px]">
                               <div className="flex items-center gap-2">
                                 <span className={`font-semibold ${hasVotedThis ? "text-amber-900" : "text-gray-700"}`}>{opt.text}</span>
-                                {hasVotedThis && <CheckCircle2 size={12} className="text-amber-600" />}
+                                {hasVotedThis && <CheckCircle2 size={12} className="max-sm:w-2.5 max-sm:h-2.5 text-amber-600" />}
                               </div>
                               <div className="flex items-center gap-2">
-                                {(poll.hasVoted || isCreator || isConcluded) && opt.votes > 0 && <span className="text-amber-700 font-black text-[10px]">{Math.round(percentage)}%</span>}
+                                {(poll.hasVoted || isCreator || isConcluded) && opt.votes > 0 && <span className="text-amber-700 font-black text-[10px] max-sm:text-[9px]">{Math.round(percentage)}%</span>}
                                 <span className="text-gray-400 font-medium">({opt.votes})</span>
                               </div>
                             </div>
@@ -472,8 +485,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
           )
         )}
         {isLoadingMore && (
-          <div className="text-center py-2 text-[10px] font-bold text-amber-500 animate-pulse uppercase tracking-widest">
-            Loading older polls...
+          <div className="flex flex-col items-center justify-center py-4 animate-fade-in">
+            <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-1" />
           </div>
         )}
       </div>
