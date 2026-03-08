@@ -32,12 +32,32 @@ export const initSocket = (server: HTTPServer) => {
       }
     });
 
-    socket.on("sendMessage", async (data: { senderId: string; senderName: string; content: string }) => {
+    socket.on("sendMessage", async (data: { senderId: string; senderName: string; content: string; imageUrl?: string; s3Key?: string }) => {
       try {
         const savedMessage = await messageService.saveMessage(data);
         io.emit("newMessage", savedMessage);
       } catch (error) {
         console.error("Error saving/sending message:", error);
+      }
+    });
+
+    socket.on("editMessage", async (data: { userId: string; messageId: string; content: string }) => {
+      try {
+        const updatedMessage = await messageService.editMessage(data.userId, data.messageId, data.content);
+        io.emit("messageEdited", updatedMessage);
+      } catch (error) {
+        console.error("Error editing message:", error);
+        socket.emit("error", { message: error instanceof Error ? error.message : "Error editing message" });
+      }
+    });
+
+    socket.on("deleteMessage", async (data: { userId: string; messageId: string }) => {
+      try {
+        const deletedMessage = await messageService.deleteMessage(data.userId, data.messageId);
+        io.emit("messageDeleted", deletedMessage);
+      } catch (error) {
+        console.error("Error deleting message:", error);
+        socket.emit("error", { message: error instanceof Error ? error.message : "Error deleting message" });
       }
     });
 

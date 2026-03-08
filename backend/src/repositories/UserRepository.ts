@@ -15,8 +15,12 @@ export class UserRepository extends BaseRepository<IUser> implements IUserReposi
     return this.create(user);
   }
 
-  async updateProfileImageUrl(id: string, url: string): Promise<IUser | null> {
-    return this.update(id, { $set: { profileImageUrl: url } });
+  async updateProfileImage(id: string, url: string, key: string): Promise<IUser | null> {
+    return this.update(id, { $set: { profileImageUrl: url, profileImageKey: key } });
+  }
+
+  async clearProfileImage(id: string): Promise<IUser | null> {
+    return this.update(id, { $unset: { profileImageUrl: "", profileImageKey: "" } });
   }
 
   async updatePasswordByEmail(email: string, passwordHash: string): Promise<void> {

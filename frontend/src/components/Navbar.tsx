@@ -68,7 +68,7 @@ const Navbar = () => {
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:bg-gray-50"
             >
               {profileImageUrl ? (
-                <img src={profileImageUrl} alt="Avatar" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover" />
+                <img key={profileImageUrl} src={profileImageUrl} alt="Avatar" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover" />
               ) : (
                 <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-xs sm:text-sm">
                   {displayName.charAt(0).toUpperCase()}

@@ -21,7 +21,37 @@ export class MessageService implements IMessageService {
       senderId: new mongoose.Types.ObjectId(data.senderId),
       senderName: data.senderName,
       content: data.content,
+      imageUrl: data.imageUrl,
+      s3Key: data.s3Key,
     } as Partial<IMessage>);
+
+    return this.mapToDTO(message);
+  }
+
+  async editMessage(userId: string, messageId: string, content: string): Promise<MessageDTO> {
+    const message = await this._messageRepository.findById(messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.senderId.toString() !== userId) throw new Error("Unauthorized to edit this message");
+    if (message.imageUrl) throw new Error("Image messages cannot be edited");
+    if (message.editCount >= 1) throw new Error("Message can only be edited once");
+
+    message.content = content;
+    message.isEdited = true;
+    message.editCount += 1;
+    await message.save();
+
+    return this.mapToDTO(message);
+  }
+
+  async deleteMessage(userId: string, messageId: string): Promise<MessageDTO> {
+    const message = await this._messageRepository.findById(messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.senderId.toString() !== userId) throw new Error("Unauthorized to delete this message");
+
+    message.isDeleted = true;
+    message.content = "This message was deleted";
+    // We keep imageUrl for now but it won't be displayed if isDeleted is handled in UI
+    await message.save();
 
     return this.mapToDTO(message);
   }
@@ -40,6 +70,10 @@ export class MessageService implements IMessageService {
       senderId: message.senderId.toString(),
       senderName: message.senderName,
       content: message.content,
+      isEdited: message.isEdited,
+      isDeleted: message.isDeleted,
+      editCount: message.editCount,
+      imageUrl: message.imageUrl,
       createdAt: message.createdAt.toISOString(),
     };
   }

@@ -3,6 +3,10 @@ export interface MessageDTO {
   senderId: string;
   senderName: string;
   content: string;
+  isEdited: boolean;
+  isDeleted: boolean;
+  editCount: number;
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -10,4 +14,6 @@ export interface CreateMessageDTO {
   senderId: string;
   senderName: string;
   content: string;
+  imageUrl?: string;
+  s3Key?: string;
 }

@@ -193,7 +193,7 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
       const authHeader = req.headers.authorization;
       const accessToken = authHeader?.split(" ")[1];
       if (accessToken) {
-        profile.profileImageUrl = `/api/user/profile-image?token=${accessToken}`;
+        profile.profileImageUrl = `/api/user/profile-image?token=${accessToken}&v=${Date.now()}`;
       }
     }
     
@@ -282,7 +282,7 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
     res.set({
       'Content-Type': imageResponse.headers.get('content-type') || 'image/jpeg',
       'Content-Length': imageResponse.headers.get('content-length') || '',
-      'Cache-Control': 'private, max-age=300',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
     });
    
     imageResponse.body?.pipe(res);
@@ -310,10 +310,24 @@ export const updateProfilePhoto = async (req: Request, res: Response, next: Next
     const authHeader = req.headers.authorization;
     const accessToken = authHeader?.split(" ")[1];
     if (updated.profileImageUrl && accessToken) {
-      updated.profileImageUrl = `/api/user/profile-image?token=${accessToken}`;
+      updated.profileImageUrl = `/api/user/profile-image?token=${accessToken}&v=${Date.now()}`;
     }
     
     return res.status(HttpStatus.OK).json({ user: updated, message: Messages.PROFILE_IMAGE_UPDATED });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteProfilePhoto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(HttpStatus.UNAUTHORIZED).json({ message: Messages.UNAUTHORIZED });
+    }
+    const updated = await userService.deleteProfileImage(userId);
+    
+    return res.status(HttpStatus.OK).json({ user: updated, message: "Profile image removed successfully" });
   } catch (err) {
     next(err);
   }

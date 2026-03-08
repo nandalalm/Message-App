@@ -24,4 +24,9 @@ export class UserApi {
     const response = await axiosInstance.put('/user/profile', data);
     return response.data.user;
   }
+
+  static async deleteProfileImage(): Promise<User> {
+    const response = await axiosInstance.delete('/user/deleteImage');
+    return response.data.user;
+  }
 }

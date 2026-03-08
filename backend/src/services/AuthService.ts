@@ -35,7 +35,7 @@ export class UserService implements IUserService {
     });
   }
 
-  async register(userData: UserDTO, password: string): Promise<UserDTO> {
+  async register(userData: Omit<UserDTO, 'id'>, password: string): Promise<void> {
     const existing = await this._userRepository.findByEmail(userData.email);
     if (existing) throw new Error(Messages.USER_EXISTS);
 
@@ -52,8 +52,6 @@ export class UserService implements IUserService {
     const otp = generateOTP();
     await setOTP(`otp:${userData.email}`, otp, 60);
     await sendOTPEmail(userData.email, otp);
-
-    return userData;
   }
 
   async verifyOTP(email: string, otp: string): Promise<{
@@ -136,7 +134,7 @@ export class UserService implements IUserService {
     return dto;
   }
 
-  private async uploadToS3(file: Buffer, fileName: string, contentType: string): Promise<string> {
+  private async uploadToS3(file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
     const { AWS_BUCKET_NAME, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = process.env;
     if (!AWS_BUCKET_NAME || !AWS_REGION || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
       throw new Error(Messages.AWS_S3_CONFIG_MISSING);
@@ -152,12 +150,53 @@ export class UserService implements IUserService {
       ContentType: contentType,
     });
     await this._s3Client.send(command);
-    return `https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+    const url = `https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+    return { url, key };
+  }
+
+  private async deleteFromS3(key: string): Promise<void> {
+    const { AWS_BUCKET_NAME } = process.env;
+    if (!AWS_BUCKET_NAME) return;
+    try {
+      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+      await this._s3Client.send(new DeleteObjectCommand({
+        Bucket: AWS_BUCKET_NAME,
+        Key: key,
+      }));
+    } catch (error) {
+      console.error(`Failed to delete ${key} from S3:`, error);
+    }
   }
 
   async updateProfileImage(userId: string, file: { buffer: Buffer; originalname: string; mimetype: string }): Promise<UserDTO> {
-    const url = await this.uploadToS3(file.buffer, file.originalname, file.mimetype);
-    const updated = await this._userRepository.updateProfileImageUrl(userId, url);
+    const user = await this._userRepository.findById(userId);
+    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+
+    if (user.profileImageKey) {
+      await this.deleteFromS3(user.profileImageKey);
+    }
+
+    const { url, key } = await this.uploadToS3(file.buffer, file.originalname, file.mimetype);
+    const updated = await this._userRepository.updateProfileImage(userId, url, key);
+    if (!updated) throw new Error(Messages.USER_NOT_FOUND);
+    return {
+      id: updated.id,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      email: updated.email,
+      profileImageUrl: updated.profileImageUrl,
+    };
+  }
+
+  async deleteProfileImage(userId: string): Promise<UserDTO> {
+    const user = await this._userRepository.findById(userId);
+    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+
+    if (user.profileImageKey) {
+      await this.deleteFromS3(user.profileImageKey);
+    }
+
+    const updated = await this._userRepository.clearProfileImage(userId);
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
     return {
       id: updated.id,
