@@ -23,9 +23,9 @@ export const initSocket = (server: HTTPServer) => {
     console.log(`🔌 New client connected: ${socket.id}`);
 
     // Message Events
-    socket.on("getChatHistory", async () => {
+    socket.on("getChatHistory", async (data?: { limit?: number; skip?: number }) => {
       try {
-        const history = await messageService.getChatHistory(100);
+        const history = await messageService.getChatHistory(data?.limit || 20, data?.skip || 0);
         socket.emit("chatHistory", history);
       } catch (error) {
         console.error("Error fetching chat history:", error);
@@ -46,18 +46,18 @@ export const initSocket = (server: HTTPServer) => {
     });
 
     // Poll Events
-    socket.on("getPolls", async (data: { userId: string, filterType: string }) => {
+    socket.on("getPolls", async (data: { userId: string, filterType: string, limit?: number, skip?: number }) => {
       try {
-        const polls = await pollService.getFilteredPolls(data.userId, data.filterType);
+        const polls = await pollService.getFilteredPolls(data.userId, data.filterType, data.limit || 20, data.skip || 0);
         socket.emit("pollsList", polls);
       } catch (error) {
         console.error("Error fetching polls:", error);
       }
     });
 
-    socket.on("getActivePolls", async (data: { userId: string }) => {
+    socket.on("getActivePolls", async (data: { userId: string, limit?: number, skip?: number }) => {
       try {
-        const polls = await pollService.getFilteredPolls(data.userId, "active");
+        const polls = await pollService.getFilteredPolls(data.userId, "active", data.limit || 20, data.skip || 0);
         socket.emit("activePolls", polls);
       } catch (error) {
         console.error("Error fetching polls:", error);

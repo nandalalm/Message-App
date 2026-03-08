@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { Vote, Plus, Clock, AlertCircle, CheckCircle2, User, Filter, Users } from "lucide-react";
 import { useAppSelector } from "../redux/store";
@@ -44,7 +44,7 @@ const PollTimer: React.FC<{ expiresAt: string; onConclude?: () => void }> = ({ e
     calculateTime();
     const timer = setInterval(calculateTime, 1000);
     return () => clearInterval(timer);
-  }, [expiresAt]);
+  }, [expiresAt, onConclude]);
 
   if (timeLeft === 0) {
     return (
@@ -140,6 +140,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const [activeVoterModal, setActiveVoterModal] = useState<Poll | null>(null);
   const [filter, setFilter] = useState<string>("active");
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const pollsContainerRef = useRef<HTMLDivElement>(null);
 
   const addToast = (message: string, type: "success" | "error") => {
     const id = Date.now();
@@ -150,11 +153,24 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   useEffect(() => {
     if (!socket || !user) return;
 
-    socket.emit("getPolls", { userId: user.id, filterType: filter });
+    // Reset pagination on filter change
+    setHasMore(true);
+    setPolls([]);
+    socket.emit("getPolls", { userId: user.id, filterType: filter, limit: 20, skip: 0 });
 
-    const handlePollsList = (list: Poll[]) => setPolls(list);
+    const handlePollsList = (list: Poll[]) => {
+      if (list.length < 20) setHasMore(false);
+      setPolls(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newPolls = list.filter(p => !existingIds.has(p.id));
+        const combined = [...prev, ...newPolls]; // No sort needed if backend handles it
+        return combined.slice(0, 100);
+      });
+      setIsLoadingMore(false);
+    };
+
     const handlePollCreated = (poll: Poll) => {
-      if (filter === "active" || filter === "myPolls") {
+      if (filter === "active" || filter === "myPolls" || filter === "all") {
         setPolls(prev => [poll, ...prev].slice(0, 100));
       }
       addToast("Poll created successfully!", "success");
@@ -167,7 +183,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     };
 
     socket.on("pollsList", handlePollsList);
-    // Backward compatibility if backend sends "activePolls" on login
     socket.on("activePolls", handlePollsList);
     socket.on("pollCreated", handlePollCreated);
     socket.on("voteUpdated", handleVoteUpdated);
@@ -180,7 +195,15 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       socket.off("voteUpdated", handleVoteUpdated);
       socket.off("error", handleError);
     };
-  }, [socket, user?.id, filter]);
+  }, [socket, user, filter]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore && !isLoadingMore && socket && polls.length > 0) {
+      setIsLoadingMore(true);
+      socket.emit("getPolls", { userId: user?.id, filterType: filter, limit: 20, skip: polls.length });
+    }
+  };
 
   const handleCreatePoll = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +219,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       return;
     }
 
-    let optionsToProcess = [...newOptions];
+    const optionsToProcess = [...newOptions];
     if (includeNone) optionsToProcess.push("None of the above");
 
     const filteredOptions = optionsToProcess.map(o => o.trim()).filter(o => o !== "");
@@ -306,7 +329,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       )}
 
       {/* Main Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scrollbar-hide">
+      <div 
+        ref={pollsContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 scrollbar-hide"
+      >
         {isCreating ? (
           <form onSubmit={handleCreatePoll} className="bg-white p-4 rounded-xl shadow-sm border border-amber-100 space-y-3 animate-slide-up">
             <div>
@@ -443,6 +470,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               );
             })
           )
+        )}
+        {isLoadingMore && (
+          <div className="text-center py-2 text-[10px] font-bold text-amber-500 animate-pulse uppercase tracking-widest">
+            Loading older polls...
+          </div>
         )}
       </div>
     </div>

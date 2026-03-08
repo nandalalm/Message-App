@@ -61,6 +61,7 @@ const PollSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+    capped: { size: 5 * 1024 * 1024, max: 100 } // 5MB size limit or 100 documents
   }
 );
 

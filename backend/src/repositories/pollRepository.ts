@@ -10,7 +10,7 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
     super(Poll);
   }
 
-  async findPollsFiltered(userId: string, filterType: string): Promise<IPoll[]> {
+  async findPollsFiltered(userId: string, filterType: string, limit: number = 20, skip: number = 0): Promise<IPoll[]> {
     let query: FilterQuery<IPoll> = {};
     const now = new Date();
 
@@ -28,7 +28,8 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
         query = {};
     }
 
-    return this.model.find(query).sort({ createdAt: -1 }).limit(100).exec();
+    const finalLimit = limit > 100 ? 100 : limit;
+    return this.model.find(query).sort({ createdAt: -1 }).skip(skip).limit(finalLimit).exec();
   }
 
   async findActivePolls(): Promise<IPoll[]> {

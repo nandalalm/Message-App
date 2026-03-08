@@ -58,8 +58,8 @@ export class PollService implements IPollService {
     return this.mapToDTO(poll, userId);
   }
 
-  async getFilteredPolls(userId: string, filterType: string): Promise<PollDTO[]> {
-    const polls = await this._pollRepository.findPollsFiltered(userId, filterType);
+  async getFilteredPolls(userId: string, filterType: string, limit: number = 20, skip: number = 0): Promise<PollDTO[]> {
+    const polls = await this._pollRepository.findPollsFiltered(userId, filterType, limit, skip);
     return polls.map(poll => this.mapToDTO(poll, userId));
   }
 

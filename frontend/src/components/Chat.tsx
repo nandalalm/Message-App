@@ -22,32 +22,54 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevScrollHeightRef = useRef<number>(0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
     if (!socket) return;
 
-    socket.emit("getChatHistory");
+    // Initial load: 20 messages
+    socket.emit("getChatHistory", { limit: 20, skip: 0 });
 
     const handleChatHistory = (history: Message[]) => {
-      setMessages(history);
+      if (history.length < 20) setHasMore(false);
+      
+      setMessages((prev) => {
+        // Find messages in history that aren't already in state
+        const existingIds = new Set(prev.map(m => m.id));
+        const newMessages = history.filter(m => !existingIds.has(m.id));
+        
+        if (newMessages.length === 0) return prev;
+        
+        // Merge and sort by creation time
+        const combined = [...prev, ...newMessages].sort((a, b) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        
+        return combined.slice(-100); // Keep max 100
+      });
+      
+      setIsLoadingMore(false);
     };
 
     const handleNewMessage = (message: Message) => {
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => {
+        const updated = [...prev, message];
+        return updated.slice(-100); // Maintain capped state in UI
+      });
+      setTimeout(() => scrollToBottom("smooth"), 100);
     };
 
     const handleUserTyping = (data: { senderName: string; isTyping: boolean }) => {
-      if (data.isTyping) {
-        setTypingUser(data.senderName);
-      } else {
-        setTypingUser(null);
-      }
+      setTypingUser(data.isTyping ? data.senderName : null);
     };
 
     socket.on("chatHistory", handleChatHistory);
@@ -60,6 +82,23 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       socket.off("userTyping", handleUserTyping);
     };
   }, [socket]);
+
+  useEffect(() => {
+    if (messagesContainerRef.current && prevScrollHeightRef.current > 0) {
+      const { scrollHeight } = messagesContainerRef.current;
+      messagesContainerRef.current.scrollTop = scrollHeight - prevScrollHeightRef.current;
+      prevScrollHeightRef.current = 0;
+    }
+  }, [messages]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight } = e.currentTarget;
+    if (scrollTop === 0 && hasMore && !isLoadingMore && socket && messages.length > 0) {
+      setIsLoadingMore(true);
+      prevScrollHeightRef.current = scrollHeight;
+      socket.emit("getChatHistory", { limit: 20, skip: messages.length });
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -126,7 +165,16 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 scrollbar-hide">
+      <div 
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 scrollbar-hide"
+      >
+        {isLoadingMore && (
+          <div className="text-center py-2 text-[10px] font-bold text-indigo-400 animate-pulse uppercase tracking-widest">
+            Loading older messages...
+          </div>
+        )}
         {messages.map((msg) => {
           const isMe = msg.senderId === user?.id;
           return (

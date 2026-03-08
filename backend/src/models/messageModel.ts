@@ -26,6 +26,7 @@ const MessageSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+    capped: { size: 1024 * 1024, max: 100 } // 1MB size limit or 100 documents
   }
 );
 

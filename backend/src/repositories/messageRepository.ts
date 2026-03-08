@@ -9,8 +9,8 @@ export class MessageRepository extends BaseRepository<IMessage> implements IMess
     super(Message);
   }
 
-  async getLatestMessages(limit: number = 100): Promise<IMessage[]> {
+  async getMessages(limit: number = 20, skip: number = 0): Promise<IMessage[]> {
     const finalLimit = limit > 100 ? 100 : limit;
-    return this.model.find().sort({ createdAt: -1 }).limit(finalLimit).exec();
+    return this.model.find().sort({ createdAt: -1 }).skip(skip).limit(finalLimit).exec();
   }
 }
