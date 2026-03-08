@@ -50,15 +50,12 @@ export class MessageService implements IMessageService {
 
     message.isDeleted = true;
     message.content = "This message was deleted";
-    // We keep imageUrl for now but it won't be displayed if isDeleted is handled in UI
     await message.save();
-
     return this.mapToDTO(message);
   }
 
   async getChatHistory(limit: number = 20, skip: number = 0): Promise<MessageDTO[]> {
     const messages = await this._messageRepository.getMessages(limit, skip);
-    // Sort by createdAt ascending for the frontend context
     return messages
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map(msg => this.mapToDTO(msg));

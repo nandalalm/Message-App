@@ -12,7 +12,7 @@ export interface PollDTO {
   allowMultiple: boolean;
   hasVoted: boolean;
   votedOptionIndices: number[];
-  voters: { userName: string; optionIndex: number }[];
+  voters: { userId: string; userName: string; optionIndex: number }[];
 }
 
 export interface CreatePollDTO {

@@ -5,6 +5,8 @@ import { TYPES } from "./types";
 import { IMessageService } from "../interfaces/services/IMessageService";
 import { IPollService } from "../interfaces/services/IPollService";
 
+import { socketAuthMiddleware } from "../middleware/socketAuthMiddleware";
+
 let io: SocketIOServer;
 
 export const initSocket = (server: HTTPServer) => {
@@ -16,11 +18,15 @@ export const initSocket = (server: HTTPServer) => {
     }
   });
 
+  // Use authentication middleware
+  io.use(socketAuthMiddleware);
+
   const messageService = container.get<IMessageService>(TYPES.MessageService);
   const pollService = container.get<IPollService>(TYPES.PollService);
 
   io.on("connection", (socket) => {
-    console.log(`🔌 New client connected: ${socket.id}`);
+    const user = socket.data.user;
+    console.log(`🔌 New authenticated client connected: ${socket.id} (${user?.email})`);
 
     // Message Events
     socket.on("getChatHistory", async (data?: { limit?: number; skip?: number }) => {
@@ -34,7 +40,10 @@ export const initSocket = (server: HTTPServer) => {
 
     socket.on("sendMessage", async (data: { senderId: string; senderName: string; content: string; imageUrl?: string; s3Key?: string }) => {
       try {
-        const savedMessage = await messageService.saveMessage(data);
+        // Enforce authenticated sender ID
+        if (!user) return;
+        const messageData = { ...data, senderId: user.id };
+        const savedMessage = await messageService.saveMessage(messageData);
         io.emit("newMessage", savedMessage);
       } catch (error) {
         console.error("Error saving/sending message:", error);
@@ -43,7 +52,9 @@ export const initSocket = (server: HTTPServer) => {
 
     socket.on("editMessage", async (data: { userId: string; messageId: string; content: string }) => {
       try {
-        const updatedMessage = await messageService.editMessage(data.userId, data.messageId, data.content);
+        // Enforce authenticated user's ID for editing
+        if (!user) return;
+        const updatedMessage = await messageService.editMessage(user.id, data.messageId, data.content);
         io.emit("messageEdited", updatedMessage);
       } catch (error) {
         console.error("Error editing message:", error);
@@ -53,7 +64,9 @@ export const initSocket = (server: HTTPServer) => {
 
     socket.on("deleteMessage", async (data: { userId: string; messageId: string }) => {
       try {
-        const deletedMessage = await messageService.deleteMessage(data.userId, data.messageId);
+        // Enforce authenticated user's ID for deletion
+        if (!user) return;
+        const deletedMessage = await messageService.deleteMessage(user.id, data.messageId);
         io.emit("messageDeleted", deletedMessage);
       } catch (error) {
         console.error("Error deleting message:", error);
@@ -68,7 +81,9 @@ export const initSocket = (server: HTTPServer) => {
     // Poll Events
     socket.on("getPolls", async (data: { userId: string, filterType: string, limit?: number, skip?: number }) => {
       try {
-        const polls = await pollService.getFilteredPolls(data.userId, data.filterType, data.limit || 20, data.skip || 0);
+        // Use authenticated user ID instead of client-provided userId
+        if (!user) return;
+        const polls = await pollService.getFilteredPolls(user.id, data.filterType, data.limit || 20, data.skip || 0);
         socket.emit("pollsList", polls);
       } catch (error) {
         console.error("Error fetching polls:", error);
@@ -77,7 +92,9 @@ export const initSocket = (server: HTTPServer) => {
 
     socket.on("getActivePolls", async (data: { userId: string, limit?: number, skip?: number }) => {
       try {
-        const polls = await pollService.getFilteredPolls(data.userId, "active", data.limit || 20, data.skip || 0);
+        // Use authenticated user ID instead of client-provided userId
+        if (!user) return;
+        const polls = await pollService.getFilteredPolls(user.id, "active", data.limit || 20, data.skip || 0);
         socket.emit("activePolls", polls);
       } catch (error) {
         console.error("Error fetching polls:", error);
@@ -96,8 +113,15 @@ export const initSocket = (server: HTTPServer) => {
 
     socket.on("vote", async (data: { pollId: string; optionIndex: number; userId: string; userName: string }) => {
       try {
-        const updatedPoll = await pollService.vote(data.pollId, data.optionIndex, data.userId, data.userName);
-        io.emit("voteUpdated", updatedPoll);
+        // Enforce authenticated user ID for voting
+        if (!user) return;
+        await pollService.vote(data.pollId, data.optionIndex, user.id, data.userName);
+        
+        // Broadcast a neutral version to all users so they don't see the voter's specific flags
+        const neutralPoll = await pollService.getPollById(data.pollId, "");
+        if (neutralPoll) {
+          io.emit("voteUpdated", neutralPoll);
+        }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         socket.emit("error", { message: errorMessage });

@@ -31,7 +31,7 @@ export class PollService implements IPollService {
       allowMultiple: data.allowMultiple,
       voters: [],
     } as Partial<IPoll>);
-    // isActive field removed
+
 
     return this.mapToDTO(poll, data.creatorId);
   }
@@ -48,6 +48,12 @@ export class PollService implements IPollService {
     const polls = await this._pollRepository.findPollsFiltered(userId, filterType, limit, skip);
     return polls.map(poll => this.mapToDTO(poll, userId));
   }
+  
+  async getPollById(pollId: string, userId: string): Promise<PollDTO | null> {
+    const poll = await this._pollRepository.findById(pollId);
+    if (!poll) return null;
+    return this.mapToDTO(poll, userId);
+  }
 
   private mapToDTO(poll: IPoll, userId: string): PollDTO {
     return {
@@ -62,8 +68,7 @@ export class PollService implements IPollService {
       allowMultiple: poll.allowMultiple,
       hasVoted: poll.voters.some(v => v.userId === userId),
       votedOptionIndices: poll.voters.filter(v => v.userId === userId).map(v => v.optionIndex),
-      voters: poll.voters.map(v => ({ userName: v.userName, optionIndex: v.optionIndex }))
+      voters: poll.voters.map(v => ({ userId: v.userId.toString(), userName: v.userName, optionIndex: v.optionIndex }))
     };
-    // isActive field removed
   }
 }
