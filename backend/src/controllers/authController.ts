@@ -5,6 +5,7 @@ import { TYPES } from "../config/types";
 import { IUserService } from "../interfaces/services/IAuthService";
 import { HttpStatus } from "../constants/httpStatus";
 import { Messages } from "../constants/messages";
+import { AppError } from "../utils/AppError";
 
 const userService = container.get<IUserService>(TYPES.UserService);
 
@@ -23,6 +24,9 @@ export const checkUsername = async (req: Request, res: Response, next: NextFunct
     const { username } = req.body;
     if (!username) return res.status(HttpStatus.BAD_REQUEST).json({ message: "Username is required" });
     const exists = await userService.checkUsername(username);
+    if (exists) {
+      return res.status(HttpStatus.CONFLICT).json({ exists, message: "Username already taken" });
+    }
     res.status(HttpStatus.OK).json({ exists });
   } catch (err) {
     next(err);
@@ -77,10 +81,8 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
       user
     });
   } catch (err) {
-    if (err instanceof Error) {
-      if (err.message === Messages.OTP_INVALID || err.message === Messages.REGISTRATION_SESSION_EXPIRED) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ message: err.message });
-      }
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ message: err.message });
     }
     next(err);
   }
@@ -94,10 +96,8 @@ export const resendOtp = async (req: Request, res: Response, next: NextFunction)
     await userService.resendOTP(email);
     res.status(HttpStatus.OK).json({ message: Messages.OTP_SEND_SUCCESS });
   } catch (err) {
-    if (err instanceof Error) {
-      if (err.message === Messages.REGISTRATION_SESSION_EXPIRED) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ message: err.message });
-      }
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ message: err.message });
     }
     next(err);
   }
@@ -118,10 +118,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     res.status(HttpStatus.OK).json({ accessToken });
   } catch (err) {
-    if (err instanceof Error) {
-      if (err.message === Messages.INVALID_CREDENTIALS) {
-        return res.status(HttpStatus.UNAUTHORIZED).json({ message: err.message });
-      }
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ message: err.message });
     }
     next(err);
   }

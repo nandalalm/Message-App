@@ -15,6 +15,11 @@ import { IPollRepository } from "../interfaces/Repositories/IPollRepository";
 import { IPollService } from "../interfaces/services/IPollService";
 import { PollRepository } from "../repositories/pollRepository";
 import { PollService } from "../services/pollService";
+import { IMessageNotificationRepository } from "../interfaces/Repositories/IMessageNotificationRepository";
+import { IPollNotificationRepository } from "../interfaces/Repositories/IPollNotificationRepository";
+import { INotificationService } from "../interfaces/services/INotificationService";
+import { MessageNotificationRepository, PollNotificationRepository } from "../repositories/NotificationRepository";
+import { NotificationService } from "../services/NotificationService";
 import { TYPES } from "./types";
 
 export const container = new Container();
@@ -23,7 +28,8 @@ container.bind<IUserRepository>(TYPES.UserRepository).toConstantValue(new UserRe
 
 container.bind<IUserService>(TYPES.UserService).toDynamicValue(() => {
   const userRepo = container.get<IUserRepository>(TYPES.UserRepository);
-  return new UserService(userRepo);
+  const imageService = container.get<IImageService>(TYPES.ImageService);
+  return new UserService(userRepo, imageService);
 });
 
 container.bind<IImageRepository>(TYPES.ImageRepository).toConstantValue(new ImageRepository());
@@ -37,7 +43,8 @@ container.bind<IMessageRepository>(TYPES.MessageRepository).toConstantValue(new 
 
 container.bind<IMessageService>(TYPES.MessageService).toDynamicValue(() => {
   const messageRepo = container.get<IMessageRepository>(TYPES.MessageRepository);
-  return new MessageService(messageRepo);
+  const imageService = container.get<IImageService>(TYPES.ImageService);
+  return new MessageService(messageRepo, imageService);
 });
 
 container.bind<IPollRepository>(TYPES.PollRepository).toConstantValue(new PollRepository());
@@ -45,4 +52,14 @@ container.bind<IPollRepository>(TYPES.PollRepository).toConstantValue(new PollRe
 container.bind<IPollService>(TYPES.PollService).toDynamicValue(() => {
   const pollRepo = container.get<IPollRepository>(TYPES.PollRepository);
   return new PollService(pollRepo);
+});
+
+container.bind<IMessageNotificationRepository>(TYPES.MessageNotificationRepository).toConstantValue(new MessageNotificationRepository());
+container.bind<IPollNotificationRepository>(TYPES.PollNotificationRepository).toConstantValue(new PollNotificationRepository());
+
+container.bind<INotificationService>(TYPES.NotificationService).toDynamicValue(() => {
+  const messageNotifRepo = container.get<IMessageNotificationRepository>(TYPES.MessageNotificationRepository);
+  const pollNotifRepo = container.get<IPollNotificationRepository>(TYPES.PollNotificationRepository);
+  const userRepo = container.get<IUserRepository>(TYPES.UserRepository);
+  return new NotificationService(messageNotifRepo, pollNotifRepo, userRepo);
 });

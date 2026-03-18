@@ -7,6 +7,7 @@ export interface MessageDTO {
   isDeleted: boolean;
   editCount: number;
   imageUrl?: string;
+  s3Key?: string;
   createdAt: string;
 }
 

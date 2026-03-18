@@ -1,6 +1,7 @@
 import { injectable, inject } from "inversify";
 import { IMessageService } from "../interfaces/services/IMessageService";
 import { IMessageRepository } from "../interfaces/Repositories/IMessageRepository";
+import { IImageService } from "../interfaces/services/IImageService";
 import { TYPES } from "../config/types";
 import { MessageDTO, CreateMessageDTO } from "../dtos/messageDtos";
 import { IMessage } from "../models/messageModel";
@@ -9,11 +10,14 @@ import mongoose from "mongoose";
 @injectable()
 export class MessageService implements IMessageService {
   private _messageRepository: IMessageRepository;
+  private _imageService: IImageService;
 
   constructor(
-    @inject(TYPES.MessageRepository) messageRepository: IMessageRepository
+    @inject(TYPES.MessageRepository) messageRepository: IMessageRepository,
+    @inject(TYPES.ImageService) imageService: IImageService
   ) {
     this._messageRepository = messageRepository;
+    this._imageService = imageService;
   }
 
   async saveMessage(data: CreateMessageDTO): Promise<MessageDTO> {
@@ -24,8 +28,8 @@ export class MessageService implements IMessageService {
       imageUrl: data.imageUrl,
       s3Key: data.s3Key,
     } as Partial<IMessage>);
-
-    return this.mapToDTO(message);
+    
+    return await this.mapToDTO(message);
   }
 
   async editMessage(userId: string, messageId: string, content: string): Promise<MessageDTO> {
@@ -40,7 +44,7 @@ export class MessageService implements IMessageService {
     message.editCount += 1;
     await message.save();
 
-    return this.mapToDTO(message);
+    return await this.mapToDTO(message);
   }
 
   async deleteMessage(userId: string, messageId: string): Promise<MessageDTO> {
@@ -51,17 +55,27 @@ export class MessageService implements IMessageService {
     message.isDeleted = true;
     message.content = "This message was deleted";
     await message.save();
-    return this.mapToDTO(message);
+    return await this.mapToDTO(message);
   }
 
   async getChatHistory(limit: number = 20, skip: number = 0): Promise<MessageDTO[]> {
     const messages = await this._messageRepository.getMessages(limit, skip);
-    return messages
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-      .map(msg => this.mapToDTO(msg));
+    const sortedMessages = messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    
+    return Promise.all(sortedMessages.map(msg => this.mapToDTO(msg)));
   }
 
-  private mapToDTO(message: IMessage): MessageDTO {
+  private async mapToDTO(message: IMessage): Promise<MessageDTO> {
+    let freshImageUrl = message.imageUrl;
+
+    if (message.s3Key && !message.isDeleted) {
+      try {
+        freshImageUrl = await this._imageService.generateSignedUrl(message.s3Key);
+      } catch (error) {
+        console.error(`Failed to generate fresh signed URL for message ${message._id}:`, error);
+      }
+    }
+
     return {
       id: message._id as string,
       senderId: message.senderId.toString(),
@@ -70,7 +84,8 @@ export class MessageService implements IMessageService {
       isEdited: message.isEdited,
       isDeleted: message.isDeleted,
       editCount: message.editCount,
-      imageUrl: message.imageUrl,
+      imageUrl: freshImageUrl,
+      s3Key: message.s3Key,
       createdAt: message.createdAt.toISOString(),
     };
   }

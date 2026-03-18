@@ -33,30 +33,51 @@ export default function VerifyOtp() {
   useEffect(() => {
     if (!email) {
       navigate("/register");
+      return;
+    }
+
+    // Persist and calculate timer state
+    const storedEmail = localStorage.getItem("otpEmail");
+    const storedSentAt = localStorage.getItem("otpSentAt");
+
+    if (storedEmail === email && storedSentAt) {
+      const sentAt = parseInt(storedSentAt);
+      const elapsed = Math.floor((Date.now() - sentAt) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      setTimeLeft(remaining);
+      setCanResend(remaining === 0);
+    } else {
+      // If no valid stored time, we assume it was just sent (init to 60)
+      localStorage.setItem("otpEmail", email);
+      localStorage.setItem("otpSentAt", Date.now().toString());
     }
   }, [email, navigate]);
 
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) {
+    // Handle paste or multiple characters (take only the last character if not empty)
+    const val = value.slice(-1);
+
+    if (value.length > 1 && index < 5) {
+      // If user pasted or typed multiple chars, handle it (simplified for single char typing)
       const pastedData = value.slice(0, 6);
       const newOtp = [...otp];
       for (let i = 0; i < pastedData.length && i < 6; i++) {
         newOtp[i] = pastedData[i];
       }
       setOtp(newOtp);
-      
-      const nextIndex = Math.min(pastedData.length, 5);
+      const nextIndex = Math.min(index + pastedData.length, 5);
       inputRefs.current[nextIndex]?.focus();
       return;
     }
 
-    if (!/^\d*$/.test(value)) return; 
+    if (!/^\d*$/.test(val)) return; 
 
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = val;
     setOtp(newOtp);
 
-    if (value && index < 5) {
+    // Only move forward if we actually typed a digit (not backspace)
+    if (val && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -76,10 +97,6 @@ export default function VerifyOtp() {
       return;
     }
 
-    if (timeLeft === 0) {
-      setError("OTP has expired. Please request a new one.");
-      return;
-    }
     
     setLoading(true);
     setError(null);
@@ -94,15 +111,14 @@ export default function VerifyOtp() {
       dispatch(setUser(response.user || null));
 
       show("Email verified successfully! Welcome!", "success");
+      localStorage.removeItem("otpEmail");
+      localStorage.removeItem("otpSentAt");
       navigate("/home");
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
+      const error = err as { response?: { status?: number, data?: { message?: string } } };
       const message = error.response?.data?.message || "OTP verification failed";
+      
       setError(message);
-      if (message.includes("Registration session expired")) {
-        show("Registration session expired. Please register again.", "error");
-        navigate("/register");
-      }
     } finally {
       setLoading(false);
     }
@@ -114,6 +130,7 @@ export default function VerifyOtp() {
     
     try {
       await AuthApi.resendOtp(email);
+      localStorage.setItem("otpSentAt", Date.now().toString());
       setTimeLeft(60);
       setCanResend(false);
       setOtp(["", "", "", "", "", ""]);
@@ -170,13 +187,9 @@ export default function VerifyOtp() {
             </div>
 
             <div className="text-center">
-              {timeLeft > 0 ? (
+              {timeLeft > 0 && (
                 <p className="text-xs text-gray-500">
                   Expires in <span className="font-medium text-gray-900">{timeLeft}s</span>
-                </p>
-              ) : (
-                <p className="text-xs text-red-600 font-medium">
-                  Code expired
                 </p>
               )}
             </div>
@@ -189,7 +202,7 @@ export default function VerifyOtp() {
 
             <button
               type="submit"
-              disabled={loading || timeLeft === 0}
+              disabled={loading}
               className="w-full bg-blue-500 text-white py-2.5 rounded-lg hover:bg-blue-600 disabled:opacity-60 transition-colors font-medium text-sm"
             >
               {loading ? "Verifying..." : "Verify Code"}

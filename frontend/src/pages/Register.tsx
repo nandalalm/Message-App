@@ -33,20 +33,28 @@ const Register = () => {
       void confirmPassword;
       
       // Mandatory backend check for username availability
-      const checkRes = await AuthApi.checkUsername(registerData.username);
-      if (checkRes.exists) {
-        setErrors({ username: "Username already taken" });
-        setLoading(false);
-        return;
+      try {
+        await AuthApi.checkUsername(registerData.username);
+      } catch (err: unknown) {
+        const error = err as { response?: { status?: number } };
+        if (error.response?.status === 409) {
+          setErrors({ username: "Username already taken" });
+          setLoading(false);
+          return;
+        }
+        throw err; // Re-throw other errors to be caught in the main catch block
       }
 
       await AuthApi.register(registerData as RegisterData);
+      localStorage.setItem("otpSentAt", Date.now().toString());
+      localStorage.setItem("otpEmail", registerData.email);
       navigate("/verify-otp", { state: { email: registerData.email } });
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
+      const error = err as { response?: { status?: number, data?: { message?: string } } };
+      const status = error.response?.status;
       const message = error.response?.data?.message || "Registration failed";
       
-      if (message === "User already exists.") {
+      if (status === 409 || message === "User already exists.") {
         setErrors({ email: "This email is already registered" });
       } else {
         setError(message);

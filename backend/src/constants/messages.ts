@@ -59,4 +59,9 @@ export const Messages = {
   USER_NOT_FOUND: "User not found",
   AWS_S3_CONFIG_MISSING: "AWS S3 configuration missing. Please set AWS_BUCKET_NAME, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY",
   INVALID_RESET_TOKEN: "Invalid or expired reset token",
+  NOTIFICATION_NOT_FOUND: "Notification not found",
+  NOTIFICATION_MARK_READ: "Notification marked as read",
+  NOTIFICATIONS_MARK_ALL_READ: "All notifications marked as read",
+  MUTE_SETTINGS_UPDATED: "Mute settings updated",
+  INVALID_NOTIFICATION_TYPE: "Invalid notification type",
 };

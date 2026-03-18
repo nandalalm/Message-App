@@ -10,40 +10,26 @@ import { generateOTP, sendOTPEmail } from "../utils/generateOtp";
 import { setOTP, getOTP, deleteOTP } from "../config/redisClient";
 import { createAccessToken, createRefreshToken } from "../utils/jwt";
 import { Messages } from "../constants/messages";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { IImageService } from "../interfaces/services/IImageService";
 import { generateResetToken, sendPasswordResetEmail } from "../utils/passwordReset";
 
 import { AppError } from "../utils/AppError";
 
 export class UserService implements IUserService {
   private _userRepository: IUserRepository;
-  private _s3Client: S3Client;
+  private _imageService: IImageService;
 
-  constructor(userRepository: IUserRepository) {
+  constructor(userRepository: IUserRepository, imageService: IImageService) {
     this._userRepository = userRepository;
-    const awsRegion = process.env.AWS_REGION;
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-
-    if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error("AWS configuration environment variables are missing");
-    }
-
-    this._s3Client = new S3Client({
-      region: awsRegion,
-      credentials: {
-        accessKeyId: awsAccessKeyId,
-        secretAccessKey: awsSecretAccessKey,
-      },
-    });
+    this._imageService = imageService;
   }
 
   async register(userData: Omit<UserDTO, 'id'>, password: string): Promise<void> {
     const existing = await this._userRepository.findByEmail(userData.email);
-    if (existing) throw new AppError(Messages.USER_EXISTS, HttpStatus.BAD_REQUEST);
+    if (existing) throw new AppError(Messages.USER_EXISTS, HttpStatus.CONFLICT);
 
     const existingUsername = await this._userRepository.findByUsername(userData.username);
-    if (existingUsername) throw new AppError("Username already taken", HttpStatus.BAD_REQUEST);
+    if (existingUsername) throw new AppError("Username already taken", HttpStatus.CONFLICT);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tempUserData = {
@@ -65,10 +51,11 @@ export class UserService implements IUserService {
     user: { id: string; username: string; email: string; profileImageUrl?: string | undefined };
   }> {
     const storedOtp = await getOTP(`otp:${email}`);
-    if (!storedOtp || storedOtp !== otp) throw new Error(Messages.OTP_INVALID);
+    if (!storedOtp) throw new AppError("OTP has expired. Please request a new one.", HttpStatus.GONE);
+    if (storedOtp !== otp) throw new AppError("Invalid OTP. Please check and try again.", HttpStatus.BAD_REQUEST);
 
     const tempUserDataStr = await getOTP(`tempUser:${email}`);
-    if (!tempUserDataStr) throw new Error(Messages.REGISTRATION_SESSION_EXPIRED);
+    if (!tempUserDataStr) throw new AppError(Messages.REGISTRATION_SESSION_EXPIRED, HttpStatus.GONE);
 
     const tempUserData = JSON.parse(tempUserDataStr);
 
@@ -84,6 +71,15 @@ export class UserService implements IUserService {
       throw new Error("User creation failed");
     }
 
+    let profileImageUrl = user.profileImageUrl;
+    if (user.profileImageKey) {
+      try {
+        profileImageUrl = await this._imageService.generateSignedUrl(user.profileImageKey);
+      } catch (error) {
+        console.error("Failed to generate profile image URL:", error);
+      }
+    }
+
     const accessToken = createAccessToken(user.id, user.email, user.username);
     const refreshToken = createRefreshToken(user.id, user.email, user.username);
 
@@ -94,7 +90,7 @@ export class UserService implements IUserService {
         id: user.id,
         username: user.username,
         email: user.email,
-        profileImageUrl: user.profileImageUrl,
+        profileImageUrl: profileImageUrl,
       },
     };
   }
@@ -110,10 +106,10 @@ export class UserService implements IUserService {
 
   async login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this._userRepository.findByEmail(email);
-    if (!user) throw new Error(Messages.INVALID_CREDENTIALS);
+    if (!user) throw new AppError("Email not found. Please register first.", HttpStatus.UNAUTHORIZED);
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) throw new Error(Messages.INVALID_CREDENTIALS);
+    if (!match) throw new AppError("Incorrect password. Please try again.", HttpStatus.UNAUTHORIZED);
 
     const accessToken = createAccessToken(user.id, user.email, user.username);
     const refreshToken = createRefreshToken(user.id, user.email, user.username);
@@ -133,46 +129,36 @@ export class UserService implements IUserService {
   async getProfile(userId: string): Promise<UserDTO> {
     const user = await this._userRepository.findById(userId);
     if (!user) throw new Error(Messages.USER_NOT_FOUND);
+
+    let profileImageUrl = user.profileImageUrl;
+    if (user.profileImageKey) {
+      try {
+        profileImageUrl = await this._imageService.generateSignedUrl(user.profileImageKey);
+      } catch (error) {
+        console.error("Failed to generate profile image URL:", error);
+      }
+    }
+
     const dto: UserDTO = {
       id: user.id,
       username: user.username,
       email: user.email,
-      profileImageUrl: user.profileImageUrl,
+      profileImageUrl: profileImageUrl,
     };
     return dto;
   }
 
   private async uploadToS3(file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
-    const { AWS_BUCKET_NAME, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = process.env;
-    if (!AWS_BUCKET_NAME || !AWS_REGION || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
-      throw new Error(Messages.AWS_S3_CONFIG_MISSING);
-    }
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).slice(2);
-    const key = `profiles/${timestamp}-${random}-${fileName}`;
-
-    const command = new PutObjectCommand({
-      Bucket: AWS_BUCKET_NAME,
-      Key: key,
-      Body: file,
-      ContentType: contentType,
-    });
-    await this._s3Client.send(command);
-    const url = `https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}`;
-    return { url, key };
+    const result = await this._imageService.createImagesFromFiles("system", [{ file, fileName, contentType }]);
+    if (result.length === 0) throw new Error("Upload failed");
+    return { url: result[0].imageUrl, key: result[0].s3Key };
   }
 
   private async deleteFromS3(key: string): Promise<void> {
-    const { AWS_BUCKET_NAME } = process.env;
-    if (!AWS_BUCKET_NAME) return;
     try {
-      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-      await this._s3Client.send(new DeleteObjectCommand({
-        Bucket: AWS_BUCKET_NAME,
-        Key: key,
-      }));
+      await this._imageService.deleteByKey(key);
     } catch (error) {
-      console.error(`Failed to delete ${key} from S3:`, error);
+      console.error(`Failed to delete profile image ${key}:`, error);
     }
   }
 
@@ -187,11 +173,21 @@ export class UserService implements IUserService {
     const { url, key } = await this.uploadToS3(file.buffer, file.originalname, file.mimetype);
     const updated = await this._userRepository.updateProfileImage(userId, url, key);
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
+
+    let profileImageUrl = updated.profileImageUrl;
+    if (updated.profileImageKey) {
+      try {
+        profileImageUrl = await this._imageService.generateSignedUrl(updated.profileImageKey);
+      } catch (error) {
+        console.error("Failed to generate profile image URL:", error);
+      }
+    }
+
     return {
       id: updated.id,
       username: updated.username,
       email: updated.email,
-      profileImageUrl: updated.profileImageUrl,
+      profileImageUrl: profileImageUrl,
     };
   }
 

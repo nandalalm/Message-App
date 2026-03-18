@@ -3,6 +3,9 @@ import { useAppDispatch, useAppSelector } from "./redux/store"
 import { refreshAccessToken } from "./redux/authSlice";
 import Router from "./routes/Router";
 import { fetchProfile } from "./redux/authSlice";
+import { fetchUnreadCounts, fetchNotifications } from "./redux/notificationsSlice";
+import { SocketProvider } from "./context/SocketContext";
+import GlobalToasts from "./components/GlobalToasts";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -20,10 +23,19 @@ const App = () => {
   useEffect(() => {
     if (accessToken) {
       dispatch(fetchProfile());
+      dispatch(fetchUnreadCounts());
+      // Sync latest 20 notifications for both types
+      dispatch(fetchNotifications({ type: "message", filter: "all", skip: 0 }));
+      dispatch(fetchNotifications({ type: "poll", filter: "all", skip: 0 }));
     }
   }, [dispatch, accessToken]);
 
-  return <Router />;
+  return (
+    <SocketProvider>
+      <GlobalToasts />
+      <Router />
+    </SocketProvider>
+  );
 };
 
 export default App;

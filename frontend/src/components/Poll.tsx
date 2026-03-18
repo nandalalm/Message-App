@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Vote, Plus, AlertCircle, CheckCircle2, User, Filter, Users, ArrowLeftRight, ChevronDown } from "lucide-react";
+import { Vote, Plus, AlertCircle, CheckCircle2, User, Filter, Users, ChevronDown, Repeat } from "lucide-react";
 import { useAppSelector } from "../redux/store";
+import NotificationCount from "./NotificationCount";
 
 interface PollOption {
   text: string;
@@ -87,6 +88,7 @@ interface PollProps {
 
 const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
+  const { messageUnreadCount } = useAppSelector((state) => state.notifications);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newQuestion, setNewQuestion] = useState("");
@@ -104,11 +106,23 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const isInitialLoadRef = useRef(true);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const pollsRef = useRef(polls);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    pollsRef.current = polls;
+  }, [polls]);
 
   const addToast = (message: string, type: "success" | "error") => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 1000);
   };
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
@@ -117,10 +131,12 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   useEffect(() => {
     if (!socket || !user) return;
-    // Reset pagination on filter change
+    // Don't reset everything immediately to avoid flicker
     setHasMore(true);
-    setPolls([]);
-    setIsInitialLoading(true);
+    // Only show skeleton if we have no polls at all
+    if (pollsRef.current.length === 0) {
+      setIsInitialLoading(true);
+    }
     socket.emit("getPolls", { userId: user.id, filterType: filter, limit: 20, skip: 0 });
   }, [socket, user, filter]);
 
@@ -133,12 +149,16 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       const reversedList = [...list].reverse(); // Backend returns newest first, we want newest at bottom
 
       const updateData = () => {
-        setPolls(prev => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const newPolls = reversedList.filter(p => !existingIds.has(p.id));
-          const combined = [...newPolls, ...prev]; // Older polls (from pagination) at top
-          return combined.slice(-100);
-        });
+        if (isLoadingMore) {
+          setPolls(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newPolls = reversedList.filter(p => !existingIds.has(p.id));
+            return [...newPolls, ...prev].slice(-100);
+          });
+        } else {
+          // If we're not loading more, we're replacing the current view (e.g. filter change)
+          setPolls(reversedList);
+        }
         setIsLoadingMore(false);
         setIsInitialLoading(false);
       };
@@ -296,7 +316,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   return (
     <div className="flex flex-col h-[600px] bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 relative">
       {/* Toast System */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-[80%] pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-[40%] pointer-events-none">
         {toasts.map(t => (
           <div key={t.id} className={`px-4 py-2 rounded-xl text-white text-xs font-bold shadow-2xl flex items-center gap-2 animate-slide-up pointer-events-auto ${t.type === "success" ? "bg-green-500" : "bg-red-500"}`}>
             {t.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
@@ -317,17 +337,24 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
           <div>
-            <h2 className="font-bold text-lg max-sm:text-sm leading-none pt-1">All Polls</h2>
+            <h2 className="font-bold text-lg max-sm:text-sm leading-none pt-1">
+              {windowWidth <= 380 ? "Polls" : "All Polls"}
+            </h2>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {showSwitch && (
             <button
               onClick={onSwitch}
-              className="flex items-center gap-2 px-3 py-1.5 max-sm:px-2 max-sm:py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] max-sm:text-[9px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0"
+              className="relative flex items-center gap-2 px-3 py-1.5 max-sm:px-2 max-sm:py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] max-sm:text-[9px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0"
             >
-              <ArrowLeftRight size={14} className="max-sm:w-3 max-sm:h-3" />
+              <Repeat size={14} className="max-sm:w-3 max-sm:h-3" />
               <span className="max-sm:hidden">Switch to </span>Chat
+              {messageUnreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full bg-indigo-500 text-white text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-amber-500">
+                  {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
+                </span>
+              )}
             </button>
           )}
           {!isCreating && (
@@ -340,6 +367,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <Plus size={20} />
             </button>
           )}
+          <NotificationCount />
         </div>
       </div>
 
@@ -417,7 +445,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
             </div>
           </form>
-        ) : isInitialLoading ? (
+        ) : isInitialLoading && polls.length === 0 ? (
           <div className="space-y-4 animate-pulse">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 space-y-3">

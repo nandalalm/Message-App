@@ -6,6 +6,7 @@ export interface IUser extends Document {
   password: string;
   profileImageUrl?: string;
   profileImageKey?: string;
+  mutedNotificationTypes: string[];
 }
 
 const userSchema = new Schema<IUser>(
@@ -15,6 +16,7 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true },
     profileImageUrl: { type: String },
     profileImageKey: { type: String },
+    mutedNotificationTypes: { type: [String], default: [] },
   },
   { timestamps: true }
 );

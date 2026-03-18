@@ -1,14 +1,19 @@
-import { useState, useEffect } from "react";
-import { io, Socket } from "socket.io-client";
-import { useAppSelector } from "../redux/store";
+import { useEffect, useState } from "react";
+import { useAppDispatch } from "../redux/store";
 import Navbar from "../components/Navbar";
 import Chat from "../components/Chat";
 import PollComponent from "../components/Poll";
+import { fetchMuteSettings } from "../redux/notificationsSlice";
+import { useSocket } from "../context/useSocketHook";
 
 const Home = () => {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const dispatch = useAppDispatch();
+  const { socket } = useSocket();
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [activeTab, setActiveTab] = useState<"chat" | "poll">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "poll">(() => {
+    const saved = localStorage.getItem("activeTab");
+    return (saved === "chat" || saved === "poll") ? saved : "chat";
+  });
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
@@ -17,48 +22,20 @@ const Home = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  useEffect(() => {
+    dispatch(fetchMuteSettings());
+  }, [dispatch]);
+
   const handleSwitch = () => {
     setIsTransitioning(true);
     setTimeout(() => {
-      setActiveTab((prev) => (prev === "chat" ? "poll" : "chat"));
+      const nextTab = activeTab === "chat" ? "poll" : "chat";
+      setActiveTab(nextTab);
+      localStorage.setItem("activeTab", nextTab);
       setIsTransitioning(false);
-    }, 400); // Wait for fade-out duration
+    }, 400);
   };
 
-  const { accessToken } = useAppSelector((state) => state.auth);
-
-  useEffect(() => {
-    if (!accessToken) return;
-
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-    const socketUrl = backendUrl || apiBaseUrl?.replace("/api", "") || "http://localhost:5000";
-
-
-    const newSocket = io(socketUrl, {
-      auth: { token: accessToken },
-      withCredentials: true,
-      transports: ["polling", "websocket"], // Ensure fallback for local development
-    });
-
-    newSocket.on("connect", () => {
-      setSocket(newSocket);
-    });
-
-    newSocket.on("connect_error", (error) => {
-      console.error("❌ [Home] Socket connection error:", error.message);
-    });
-
-    newSocket.on("disconnect", (reason) => {
-      console.warn("🔌 [Home] Socket disconnected:", reason);
-    });
-
-    setSocket(newSocket); // Set it anyway so children see the instance and its internal state
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [accessToken]);
 
   const isMobile = windowWidth <= 1030;
 
@@ -68,29 +45,26 @@ const Home = () => {
       <div className="max-w-[1400px] mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {!isMobile ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            {/* Chat Column */}
             <section className="animate-slide-up h-full">
               <Chat socket={socket} />
             </section>
-
-            {/* Polling Column */}
-            <section className="animate-slide-up h-full" style={{ animationDelay: '100ms' }}>
+            <section className="animate-slide-up h-full" style={{ animationDelay: "100ms" }}>
               <PollComponent socket={socket} />
             </section>
           </div>
         ) : (
           <div className={`max-w-[600px] mx-auto transition-all duration-400 ${isTransitioning ? "animate-fade-out" : "animate-fade-in"}`}>
             {activeTab === "chat" ? (
-              <Chat 
-                socket={socket} 
-                showSwitch={true} 
-                onSwitch={handleSwitch} 
+              <Chat
+                socket={socket}
+                showSwitch={true}
+                onSwitch={handleSwitch}
               />
             ) : (
-              <PollComponent 
-                socket={socket} 
-                showSwitch={true} 
-                onSwitch={handleSwitch} 
+              <PollComponent
+                socket={socket}
+                showSwitch={true}
+                onSwitch={handleSwitch}
               />
             )}
           </div>

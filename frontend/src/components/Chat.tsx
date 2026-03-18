@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { Send, MessageSquare, ArrowLeftRight, ChevronDown, Edit2, Trash2, X, Image as ImageIcon, Maximize2 } from "lucide-react";
+import { Send, MessageSquare, ChevronDown, Edit2, Trash2, X, Image as ImageIcon, Maximize2, Repeat } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 import { ImageApi } from "../services/imageApi";
 import { useToast } from "../hooks/useToast";
 import ConfirmDialog from "./ConfirmDialog";
+import NotificationIcon from "./NotificationIcon";
 
 interface Message {
   id: string;
@@ -26,6 +27,7 @@ interface ChatProps {
 
 const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
+  const { pollUnreadCount } = useAppSelector((state) => state.notifications);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
@@ -38,7 +40,8 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const [messageToDeleteId, setMessageToDeleteId] = useState<string | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
-  const [localImageMessage, setLocalImageMessage] = useState<{ id: string; senderId: string; senderName: string; imageUrl: string | null; createdAt: string } | null>(null);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { show } = useToast();
@@ -48,6 +51,14 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const prevScrollHeightRef = useRef<number>(0);
   const isInitialLoadRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const isAtBottomRef = useRef(true);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -96,7 +107,11 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
         const updated = [...prev, message];
         return updated.slice(-100);
       });
-      setTimeout(() => scrollToBottom("smooth"), 100);
+      
+      const isMyMessage = user && message.senderId === user.id;
+      if (isMyMessage || isAtBottomRef.current) {
+        setTimeout(() => scrollToBottom("smooth"), 100);
+      }
     };
 
     const handleMessageEdited = (updatedMessage: Message) => {
@@ -124,7 +139,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       socket.off("messageDeleted", handleMessageDeleted);
       socket.off("userTyping", handleUserTyping);
     };
-  }, [socket, isLoadingMore]);
+  }, [socket, isLoadingMore, user]);
 
   useEffect(() => {
     if (messagesContainerRef.current && prevScrollHeightRef.current > 0) {
@@ -134,6 +149,12 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (typingUser && isAtBottomRef.current) {
+      setTimeout(() => scrollToBottom("smooth"), 100);
+    }
+  }, [typingUser]);
+
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     if (scrollTop === 0 && hasMore && !isLoadingMore && socket && messages.length > 0) {
@@ -141,18 +162,45 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
       prevScrollHeightRef.current = scrollHeight;
       socket.emit("getChatHistory", { limit: 20, skip: messages.length });
     }
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+    isAtBottomRef.current = isNearBottom;
     setShowScrollButton(!isNearBottom && messages.length > 5);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !socket) return;
+    if ((!newMessage.trim() && !pendingImage) || !user || !socket) return;
+
+    let imageUrl = undefined;
+    let s3Key = undefined;
+
+    if (pendingImage) {
+      try {
+        setImageUploading(true);
+        const results = await ImageApi.uploadImages([{ file: pendingImage }]);
+        if (results.length > 0) {
+          imageUrl = results[0].url;
+          s3Key = results[0].id;
+        }
+      } catch (error) {
+        console.error("Image upload failed:", error);
+        show("Failed to upload image.", "error");
+        setImageUploading(false);
+        return;
+      } finally {
+        setImageUploading(false);
+        setPendingImage(null);
+        if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+        setPendingImagePreview(null);
+      }
+    }
 
     const messageData = {
       senderId: user.id,
       senderName: user.username,
-      content: newMessage.trim(),
+      content: newMessage.trim() || (imageUrl ? "Sent an image" : ""),
+      imageUrl,
+      s3Key
     };
 
     socket.emit("sendMessage", messageData);
@@ -160,48 +208,26 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
     socket.emit("typing", { senderName: user.username, isTyping: false });
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user || !socket) return;
+    if (!file || !user) return;
 
     if (!file.type.startsWith("image/")) {
       show("Only image files are allowed!", "error");
       return;
     }
 
-    const tempId = `temp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
+    setPendingImage(file);
+    setPendingImagePreview(previewUrl);
+    
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-    try {
-      setImageUploading(true);
-      setLocalImageMessage({
-        id: tempId,
-        senderId: user.id,
-        senderName: user.username,
-        imageUrl: previewUrl,
-        createdAt: new Date().toISOString(),
-      });
-      
-      const results = await ImageApi.uploadImages([{ file }]);
-      if (results.length > 0) {
-        const messageData = {
-          senderId: user.id,
-          senderName: user.username,
-          content: "Sent an image",
-          imageUrl: results[0].url,
-          s3Key: results[0].id
-        };
-        socket.emit("sendMessage", messageData);
-      }
-    } catch (error) {
-      console.error("Image upload failed:", error);
-      show("Failed to upload image.", "error");
-    } finally {
-      setImageUploading(false);
-      setLocalImageMessage(null);
-      URL.revokeObjectURL(previewUrl);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+  const cancelPendingImage = () => {
+    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+    setPendingImage(null);
+    setPendingImagePreview(null);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -235,15 +261,25 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
           <MessageSquare className="text-white" size={20} />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-white font-bold text-lg max-sm:text-sm truncate">Global Chat</h2>
-          <p className="text-indigo-100 text-xs font-medium max-sm:text-[9px] truncate">Connect with everyone</p>
+          <h2 className="text-white font-bold text-lg max-sm:text-sm truncate">
+            {windowWidth <= 380 ? "Chats" : "Global Chat"}
+          </h2>
+          {windowWidth > 380 && (
+            <p className="text-indigo-100 text-xs font-medium max-sm:text-[9px] truncate">Connect with everyone</p>
+          )}
         </div>
         {showSwitch && (
-          <button onClick={onSwitch} className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0">
-            <ArrowLeftRight size={14} />
+          <button onClick={onSwitch} className="relative flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-[10px] font-black uppercase tracking-wider transition-all border border-white/10 shrink-0">
+            <Repeat size={14} />
             <span className="max-sm:hidden">Switch to </span>Polls
+            {pollUnreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full bg-amber-400 text-gray-900 text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-indigo-600">
+                {pollUnreadCount > 99 ? "99+" : pollUnreadCount}
+              </span>
+            )}
           </button>
         )}
+        <NotificationIcon />
       </div>
 
       {/* Messages */}
@@ -313,30 +349,6 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
           );
         })}
         
-        {localImageMessage && (
-          <div className="flex flex-col items-end group relative animate-in fade-in slide-in-from-right-2 duration-300">
-            <div className="flex items-center gap-1.5 mb-1 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">YOU</span>
-              <span className="text-[9px] text-gray-400 font-medium">Sending...</span>
-            </div>
-            <div className="flex items-center gap-2 max-w-[85%]">
-              <div className="px-4 py-2.5 rounded-2xl bg-indigo-600/10 text-white border-indigo-200 rounded-tr-none relative overflow-hidden backdrop-blur-sm border shadow-sm">
-                <div className="relative group/img opacity-50">
-                  {localImageMessage.imageUrl && (
-                    <img 
-                      src={localImageMessage.imageUrl} 
-                      alt="Uploading..." 
-                      className="rounded-xl max-w-[200px] max-h-[200px] max-sm:max-w-[140px] max-sm:max-h-[140px] object-cover filter blur-[2px]" 
-                    />
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-lg" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {typingUser && (
           <div className="flex flex-col items-start px-1 animate-pulse">
@@ -353,6 +365,25 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
 
       {showScrollButton && (
         <button onClick={() => scrollToBottom("smooth")} className="absolute bottom-24 right-5 p-3 bg-indigo-600 text-white rounded-full shadow-xl hover:bg-indigo-700 transition-all animate-bounce z-20 border-2 border-white/20"><ChevronDown size={20} /></button>
+      )}
+
+      {/* Pending Image Preview */}
+      {pendingImagePreview && (
+        <div className="mx-4 mb-2 p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="relative group/pending">
+            <img src={pendingImagePreview} alt="Pending" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+            <button 
+              onClick={cancelPendingImage}
+              className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ready to send</p>
+            <p className="text-xs text-gray-600 truncate">{pendingImage?.name}</p>
+          </div>
+        </div>
       )}
 
       {/* Input */}
@@ -375,7 +406,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
             placeholder={user ? "Write a message..." : "Loading profile..."}
             className="flex-1 px-3 py-2.5 sm:px-5 sm:py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none min-w-0 disabled:opacity-50"
           />
-          <button type="submit" disabled={!newMessage.trim() || !user} className="p-2.5 sm:p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200 group shrink-0">
+          <button type="submit" disabled={(!newMessage.trim() && !pendingImage) || !user} className="p-2.5 sm:p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200 group shrink-0">
             <Send size={20} className="sm:w-[22px] sm:h-[22px] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </div>

@@ -7,4 +7,7 @@ export const TYPES = {
   MessageService: Symbol.for("MessageService"),
   PollRepository: Symbol.for("PollRepository"),
   PollService: Symbol.for("PollService"),
+  MessageNotificationRepository: Symbol.for("MessageNotificationRepository"),
+  PollNotificationRepository: Symbol.for("PollNotificationRepository"),
+  NotificationService: Symbol.for("NotificationService"),
 };

@@ -214,7 +214,7 @@ export class ImageService implements IImageService {
     return imagesWithSignedUrls;
   }
 
-  private async deleteFromS3(s3Key: string): Promise<void> {
+  async deleteByKey(s3Key: string): Promise<void> {
     try {
       if (!process.env.AWS_BUCKET_NAME) {
         throw new Error(Messages.S3_BUCKET_NOT_CONFIGURED);
@@ -230,5 +230,9 @@ export class ImageService implements IImageService {
       console.error(`Failed to delete S3 object ${s3Key}:`, error);
       throw new Error(`Failed to delete S3 object: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private async deleteFromS3(s3Key: string): Promise<void> {
+    await this.deleteByKey(s3Key);
   }
 }

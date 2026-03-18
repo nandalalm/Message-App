@@ -10,6 +10,7 @@ import { loggerMiddleware } from "./middleware/loggerMiddleware";
 import authRoutes from "./routes/authRoute";
 import imageRoutes from "./routes/imageRoute";
 import userRoutes from "./routes/userRoute";
+import notificationRoutes from "./routes/notificationRoute";
 
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
@@ -19,7 +20,7 @@ const app = express();
 const httpServer = createServer(app);
 
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -34,6 +35,7 @@ connectRedis();
 app.use("/api/auth", authRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use(errorMiddleware);
 
 initSocket(httpServer);
