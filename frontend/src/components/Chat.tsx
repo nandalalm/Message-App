@@ -180,7 +180,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
         const results = await ImageApi.uploadImages([{ file: pendingImage }]);
         if (results.length > 0) {
           imageUrl = results[0].url;
-          s3Key = results[0].id;
+          s3Key = results[0].key;
         }
       } catch (error) {
         console.error("Image upload failed:", error);

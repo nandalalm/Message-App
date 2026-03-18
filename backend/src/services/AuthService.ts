@@ -148,8 +148,8 @@ export class UserService implements IUserService {
     return dto;
   }
 
-  private async uploadToS3(file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
-    const result = await this._imageService.createImagesFromFiles("system", [{ file, fileName, contentType }]);
+  private async uploadToS3(userId: string, file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
+    const result = await this._imageService.createImagesFromFiles(userId, [{ file, fileName, contentType }]);
     if (result.length === 0) throw new Error("Upload failed");
     return { url: result[0].imageUrl, key: result[0].s3Key };
   }
@@ -170,7 +170,7 @@ export class UserService implements IUserService {
       await this.deleteFromS3(user.profileImageKey);
     }
 
-    const { url, key } = await this.uploadToS3(file.buffer, file.originalname, file.mimetype);
+    const { url, key } = await this.uploadToS3(userId, file.buffer, file.originalname, file.mimetype);
     const updated = await this._userRepository.updateProfileImage(userId, url, key);
     if (!updated) throw new Error(Messages.USER_NOT_FOUND);
 

@@ -11,6 +11,7 @@ export interface ImageUploadData {
 export interface UploadResult {
   url: string;
   id: string;
+  key: string;
 }
 
 export interface DeleteAllResponse {

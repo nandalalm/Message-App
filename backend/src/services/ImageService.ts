@@ -180,7 +180,7 @@ export class ImageService implements IImageService {
 
 
 
-  async generateSignedUrl(s3Key: string, expiresIn: number = 3600): Promise<string> {
+  async generateSignedUrl(s3Key: string, expiresIn: number = 120): Promise<string> {
     try {
       if (!process.env.AWS_BUCKET_NAME) {
         throw new Error(Messages.S3_BUCKET_NOT_CONFIGURED);

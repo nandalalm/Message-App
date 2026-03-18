@@ -179,6 +179,7 @@ export const uploadImages = async (req: Request, res: Response, next: NextFuncti
       images: createdImages.map(img => ({
         _id: img._id,
         imageUrl: `/api/images/serve/${img._id}${accessToken ? `?token=${accessToken}` : ''}`,
+        s3Key: img.s3Key,
         createdAt: img.createdAt
       }))
     });

@@ -31,9 +31,10 @@ export class ImageApi {
       },
     });
 
-    return response.data.images.map((img: { imageUrl: string; _id: string }) => ({
+    return response.data.images.map((img: { imageUrl: string; _id: string; s3Key: string }) => ({
       url: img.imageUrl,
-      id: img._id
+      id: img._id,
+      key: img.s3Key
     }));
   }
 }
