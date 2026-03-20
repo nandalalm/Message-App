@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useAppSelector } from "../redux/store";
 import { fetchMuteSettings } from "../redux/notificationsSlice";
 import { useAppDispatch } from "../redux/store";
@@ -31,25 +31,22 @@ const NotificationIcon: React.FC<NotificationIconProps> = () => {
         }`}
         title={isMuted ? "Notifications muted" : "Notifications"}
       >
-        {isMuted ? (
-          <BellOff size={18} className="opacity-60" />
-        ) : (
-          <Bell size={18} />
+        <Bell size={18} className={isMuted ? "text-white/40" : "text-white"} />
+        {isMuted && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-[1.5px] h-[18px] bg-white/40 -rotate-45 rounded-full" />
+          </div>
         )}
         {messageUnreadCount > 0 && (
           <span
-            className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1 shadow-lg ${
-              isMuted ? "bg-gray-400" : "bg-red-500"
+            className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-[9px] font-black flex items-center justify-center px-1 shadow-lg ${
+              isMuted ? "bg-gray-300 text-gray-900" : "bg-red-500 text-white"
             }`}
           >
-            {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
+            {messageUnreadCount > 9 ? "9+" : messageUnreadCount}
           </span>
         )}
-        {isMuted && (
-          <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-white/40 font-black text-xl leading-none" style={{ marginTop: "-1px" }}>/</span>
-          </span>
-        )}
+
       </button>
       {panelOpen && (
         <NotificationPanel type="message" onClose={() => setPanelOpen(false)} />

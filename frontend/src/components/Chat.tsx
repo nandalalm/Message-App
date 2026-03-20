@@ -27,7 +27,8 @@ interface ChatProps {
 
 const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
-  const { pollUnreadCount } = useAppSelector((state) => state.notifications);
+  const { pollUnreadCount, muteSettings } = useAppSelector((state) => state.notifications);
+  const isPollMuted = muteSettings.mutedNotificationTypes.includes("poll");
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
@@ -273,8 +274,10 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
             <Repeat size={14} />
             <span className="max-sm:hidden">Switch to </span>Polls
             {pollUnreadCount > 0 && (
-              <span className="absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full bg-amber-400 text-gray-900 text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-indigo-600">
-                {pollUnreadCount > 99 ? "99+" : pollUnreadCount}
+              <span className={`absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-indigo-600 ${
+                isPollMuted ? "bg-gray-300 text-gray-900" : "bg-red-500 text-white"
+              }`}>
+                {pollUnreadCount > 9 ? "9+" : pollUnreadCount}
               </span>
             )}
           </button>

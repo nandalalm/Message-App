@@ -56,11 +56,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on("newNotification", (notification: NotificationItem) => {
       dispatch(addIncomingNotification(notification));
-      
-      // Global toast trigger can be handled here if we want a global toast system
-      // For now, we'll let components listen or we can emit a custom event
-      const event = new CustomEvent("globalNotification", { detail: notification });
-      window.dispatchEvent(event);
+
+      const isMuted = muteSettingsRef.current.mutedNotificationTypes.includes(notification.type);
+      if (!isMuted) {
+        const event = new CustomEvent("globalNotification", { detail: notification });
+        window.dispatchEvent(event);
+      }
     });
 
     setSocket(newSocket);

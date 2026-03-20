@@ -7,6 +7,7 @@ import {
   markAllNotificationsRead,
   toggleNotificationMute,
   resetNotifications,
+  fetchMuteSettings,
 } from "../redux/notificationsSlice";
 import type { NotificationType, NotificationFilter } from "../types/notification";
 import ConfirmDialog from "./ConfirmDialog";
@@ -22,9 +23,14 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ type, onClose }) 
     useAppSelector((state) => state.notifications);
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [showMuteConfirm, setShowMuteConfirm] = useState(false);
+  const showMuteConfirmRef = useRef(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    showMuteConfirmRef.current = showMuteConfirm;
+  }, [showMuteConfirm]);
 
   const notifications = type === "message" ? messageNotifications : pollNotifications;
   const hasMore = type === "message" ? messageHasMore : pollHasMore;
@@ -47,12 +53,14 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ type, onClose }) 
   }, []);
 
   useEffect(() => {
+    dispatch(fetchMuteSettings());
     dispatch(resetNotifications(type));
     loadPage(0);
   }, [filter, type, dispatch, loadPage]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (showMuteConfirmRef.current) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onClose();
       }

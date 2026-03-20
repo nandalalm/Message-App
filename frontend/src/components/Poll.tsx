@@ -88,7 +88,8 @@ interface PollProps {
 
 const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) => {
   const { user } = useAppSelector((state) => state.auth);
-  const { messageUnreadCount } = useAppSelector((state) => state.notifications);
+  const { messageUnreadCount, muteSettings } = useAppSelector((state) => state.notifications);
+  const isMessageMuted = muteSettings.mutedNotificationTypes.includes("message");
   const [polls, setPolls] = useState<Poll[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newQuestion, setNewQuestion] = useState("");
@@ -119,10 +120,10 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     pollsRef.current = polls;
   }, [polls]);
 
-  const addToast = (message: string, type: "success" | "error") => {
+  const addToast = (message: string, type: "success" | "error", duration: number = 1000) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 1000);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
   };
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
@@ -177,7 +178,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     const handlePollCreated = (poll: Poll) => {
       setPolls(prev => [...prev, poll].slice(-100)); // Newest at bottom
       setTimeout(() => scrollToBottom("smooth"), 100);
-      addToast("Poll created successfully!", "success");
+      if (poll.creatorId === user?.id) {
+        addToast("Poll created successfully!", "success");
+      }
     };
     const handleVoteUpdated = (updatedPoll: Poll) => {
       setPolls(prev => prev.map(p => {
@@ -199,7 +202,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       }));
     };
     const handleError = (data: { message: string }) => {
-      addToast(data.message, "error");
+      const isLimitError = data.message.includes("Daily poll limit");
+      addToast(data.message, "error", isLimitError ? 3000 : 1000);
     };
 
     socket.on("pollsList", handlePollsList);
@@ -351,8 +355,10 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <Repeat size={14} className="max-sm:w-3 max-sm:h-3" />
               <span className="max-sm:hidden">Switch to </span>Chat
               {messageUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full bg-indigo-500 text-white text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-amber-500">
-                  {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
+                <span className={`absolute -top-2 -right-2 min-w-[16px] h-4 rounded-full text-[8px] font-black flex items-center justify-center px-1 shadow-lg ring-2 ring-amber-500 ${
+                  isMessageMuted ? "bg-gray-300 text-gray-900" : "bg-red-500 text-white"
+                }`}>
+                  {messageUnreadCount > 9 ? "9+" : messageUnreadCount}
                 </span>
               )}
             </button>
