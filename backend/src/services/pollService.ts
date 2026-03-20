@@ -4,6 +4,7 @@ import { IPollRepository } from "../interfaces/Repositories/IPollRepository";
 import { TYPES } from "../config/types";
 import { PollDTO, CreatePollDTO } from "../dtos/pollDtos";
 import { IPoll } from "../models/pollModel";
+import { Messages } from "../constants/messages";
 import mongoose from "mongoose";
 
 @injectable()
@@ -17,6 +18,38 @@ export class PollService implements IPollService {
   }
 
   async createPoll(data: CreatePollDTO): Promise<PollDTO> {
+    const trimmedQuestion = data.question?.trim();
+    if (!trimmedQuestion) {
+      throw new Error(Messages.POLL_QUESTION_REQUIRED);
+    }
+
+    if (trimmedQuestion.length < 5 || trimmedQuestion.length > 200) {
+      throw new Error(Messages.POLL_QUESTION_LENGTH);
+    }
+
+    const filteredOptions = data.options
+      ?.map(o => o.trim())
+      .filter(o => o !== "") || [];
+
+    if (filteredOptions.length < 2) {
+      throw new Error(Messages.POLL_OPTIONS_REQUIRED);
+    }
+
+    if (filteredOptions.length > 12) {
+      throw new Error(Messages.POLL_OPTIONS_MAX);
+    }
+
+    for (const opt of filteredOptions) {
+      if (opt.length < 1 || opt.length > 100) {
+        throw new Error(Messages.POLL_OPTION_LENGTH);
+      }
+    }
+
+    const uniqueOptions = new Set(filteredOptions.map(o => o.toLowerCase()));
+    if (uniqueOptions.size !== filteredOptions.length) {
+      throw new Error(Messages.POLL_DUPLICATE_OPTIONS);
+    }
+
     const userTodayCount = await this._pollRepository.getTodayPollCountForUser(data.creatorId);
     if (userTodayCount >= 10) {
       throw new Error("Daily poll limit (10) reached. You can create more polls tomorrow.");

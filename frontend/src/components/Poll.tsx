@@ -203,7 +203,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     };
     const handleError = (data: { message: string }) => {
       const isLimitError = data.message.includes("Daily poll limit");
-      addToast(data.message, "error", isLimitError ? 3000 : 1000);
+      addToast(data.message, "error", isLimitError ? 3000 : 2000);
     };
 
     socket.on("pollsList", handlePollsList);
@@ -263,13 +263,17 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
     const trimmedQuestion = newQuestion.trim();
     if (!trimmedQuestion) {
-      addToast("Question cannot be empty.", "error");
+      addToast("Poll question is required.", "error", 2000);
       return;
     }
 
-    
+    if (trimmedQuestion.length < 5 || trimmedQuestion.length > 200) {
+      addToast("Question must be between 5 and 200 characters.", "error", 2000);
+      return;
+    }
+
     if (/[^A-Za-z0-9\s?!.]/.test(trimmedQuestion)) {
-      addToast("Only ? ! . special characters allowed in question.", "error");
+      addToast("Only ? ! . special characters allowed in question.", "error", 2000);
       return;
     }
 
@@ -281,15 +285,30 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       .filter(o => o !== "");
 
     if (filteredOptions.length < 2) {
-      addToast("At least 2 non-empty options are required.", "error");
+      addToast("At least 2 non-empty options are required.", "error", 2000);
+      return;
+    }
+
+    if (filteredOptions.length > 12) {
+      addToast("Maximum 12 options are allowed.", "error", 2000);
       return;
     }
 
     for (const opt of filteredOptions) {
-      if (/[^A-Za-z0-9\s]/.test(opt)) {
-        addToast(`Option "${opt}" contains forbidden characters.`, "error");
+      if (opt.length < 1 || opt.length > 100) {
+        addToast(`Options must be between 1 and 100 characters.`, "error", 2000);
         return;
       }
+      if (/[^A-Za-z0-9\s]/.test(opt)) {
+        addToast(`Option "${opt}" contains forbidden characters.`, "error", 2000);
+        return;
+      }
+    }
+
+    const uniqueOptions = new Set(filteredOptions.map(o => o.toLowerCase()));
+    if (uniqueOptions.size !== filteredOptions.length) {
+      addToast("Duplicate options are not allowed.", "error", 2000);
+      return;
     }
 
 
@@ -314,7 +333,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   };
 
   const addOption = () => {
-    if (newOptions.length < 6) setNewOptions([...newOptions, ""]);
+    if (newOptions.length < 12) setNewOptions([...newOptions, ""]);
   };
 
   return (
@@ -433,8 +452,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                 />
               ))}
               <div className="flex flex-wrap gap-4 pt-1">
-                {newOptions.length < 6 && (
-                  <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option (Max 6)</button>
+                {newOptions.length < 12 && (
+                  <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option (Max 12)</button>
                 )}
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="includeNone" checked={includeNone} onChange={(e) => setIncludeNone(e.target.checked)} className="w-3 h-3 text-amber-500 rounded" />
@@ -524,11 +543,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                             </div>
                             
                             <div className="flex items-center gap-2 shrink-0 ml-2">
-                              {(poll.hasVoted || isCreator) && (
-                                <span className={`font-bold text-[11px] ${hasVotedThis ? "text-amber-700" : "text-gray-500"}`}>
-                                  {Math.round(percentage)}%
-                                </span>
-                              )}
+                              <span className={`font-bold text-[11px] ${hasVotedThis ? "text-amber-700" : "text-gray-500"}`}>
+                                {Math.round(percentage)}%
+                              </span>
                             </div>
                           </div>
                         </button>
@@ -546,8 +563,13 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                     )}
                   </div>
                   <button
+                    disabled={totalVotes === 0}
                     onClick={() => setActiveVoterModal(poll)}
-                    className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 hover:underline transition-colors"
+                    className={`flex items-center gap-1 text-[10px] font-bold transition-colors ${
+                      totalVotes === 0 
+                        ? "text-amber-300 cursor-default" 
+                        : "text-amber-600 hover:text-amber-800 hover:underline"
+                    }`}
                   >
                     <Users size={11} />
                     View Votes

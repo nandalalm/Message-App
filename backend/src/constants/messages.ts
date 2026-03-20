@@ -64,4 +64,10 @@ export const Messages = {
   NOTIFICATIONS_MARK_ALL_READ: "All notifications marked as read",
   MUTE_SETTINGS_UPDATED: "Mute settings updated",
   INVALID_NOTIFICATION_TYPE: "Invalid notification type",
+  POLL_QUESTION_REQUIRED: "Poll question is required.",
+  POLL_QUESTION_LENGTH: "Question must be between 5 and 200 characters.",
+  POLL_OPTIONS_REQUIRED: "At least 2 non-empty options are required.",
+  POLL_OPTIONS_MAX: "Maximum 12 options are allowed.",
+  POLL_OPTION_LENGTH: "Each option must be between 1 and 100 characters.",
+  POLL_DUPLICATE_OPTIONS: "Duplicate options are not allowed.",
 };
