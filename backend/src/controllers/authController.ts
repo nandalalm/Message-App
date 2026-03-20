@@ -3,11 +3,13 @@ import jwt, { VerifyErrors, JwtPayload } from "jsonwebtoken";
 import { container } from "../config/container";
 import { TYPES } from "../config/types";
 import { IUserService } from "../interfaces/services/IAuthService";
+import { IImageService } from "../interfaces/services/IImageService";
 import { HttpStatus } from "../constants/httpStatus";
 import { Messages } from "../constants/messages";
 import { AppError } from "../utils/AppError";
 
 const userService = container.get<IUserService>(TYPES.UserService);
+const imageService = container.get<IImageService>(TYPES.ImageService);
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -248,40 +250,12 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
       return res.status(HttpStatus.UNAUTHORIZED).json({ message: Messages.UNAUTHORIZED });
     }
 
-    const profile = await userService.getProfile(userId);
-    if (!profile.profileImageUrl) {
+    const s3Key = await userService.getProfileImageKey(userId);
+    if (!s3Key) {
       return res.status(HttpStatus.NOT_FOUND).json({ message: "Profile image not found" });
     }
 
-    const urlParts = profile.profileImageUrl.split('/');
-    const s3Key = urlParts.slice(3).join('/'); 
-
-    const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
-    
-    const awsRegion = process.env.AWS_REGION;
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-    const awsBucketName = process.env.AWS_BUCKET_NAME;
-    
-    if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey || !awsBucketName) {
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: "AWS configuration error" });
-    }
-
-    const s3Client = new S3Client({
-      region: awsRegion,
-      credentials: {
-        accessKeyId: awsAccessKeyId,
-        secretAccessKey: awsSecretAccessKey,
-      },
-    });
-
-    const command = new GetObjectCommand({
-      Bucket: awsBucketName,
-      Key: s3Key,
-    });
-
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+    const signedUrl = await imageService.generateSignedUrl(s3Key, 300);
 
     const fetch = (await import('node-fetch')).default;
     const imageResponse = await fetch(signedUrl);

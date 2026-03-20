@@ -232,4 +232,9 @@ export class UserService implements IUserService {
     await this._userRepository.updatePasswordByEmail(email, hash);
     await deleteOTP(`reset:${token}`);
   }
+
+  async getProfileImageKey(userId: string): Promise<string | undefined> {
+    const user = await this._userRepository.findById(userId);
+    return user?.profileImageKey;
+  }
 }

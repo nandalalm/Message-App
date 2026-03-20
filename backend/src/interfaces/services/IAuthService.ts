@@ -17,4 +17,5 @@ export interface IUserService {
   deleteProfileImage(userId: string): Promise<UserDTO>;
   requestPasswordReset(email: string, originBaseUrl?: string): Promise<{ emailExists: boolean }>;
   resetPassword(token: string, newPassword: string): Promise<void>;
+  getProfileImageKey(userId: string): Promise<string | undefined>;
 }
