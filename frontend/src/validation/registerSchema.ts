@@ -3,9 +3,12 @@ import { z } from "zod";
 export const registerSchema = z.object({
   username: z
     .string()
-    .min(4, "Username must be at least 4 characters")
-    .max(20, "Username cannot exceed 20 characters")
-    .regex(/^[a-zA-Z][a-zA-Z._]{2,}[a-zA-Z]$/, "Username must be at least 4 characters, start and end with a letter, and contain only letters, dots, or underscores (no numbers or spaces allowed)"),
+    .min(4, "Username must be 4-20 characters long")
+    .max(20, "Username must be 4-20 characters long")
+    .regex(/^[a-zA-Z]/, "Username must start with a letter")
+    .regex(/[a-zA-Z0-9]$/, "Username must end with a letter or number")
+    .regex(/^[a-zA-Z0-9._]*$/, "Username can only contain letters, numbers, dots, and underscores")
+    .refine(s => !/[._]{2,}/.test(s), "Username cannot have consecutive special characters (.. or __)"),
   email: z
     .string()
     .trim()

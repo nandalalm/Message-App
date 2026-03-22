@@ -28,8 +28,13 @@ export class UserService implements IUserService {
     const existing = await this._userRepository.findByEmail(userData.email);
     if (existing) throw new AppError(Messages.USER_EXISTS, HttpStatus.CONFLICT);
 
+    const usernameRegex = /^[a-zA-Z](?!.*[._]{2})[a-zA-Z0-9._]{2,18}[a-zA-Z0-9]$/;
+    if (!usernameRegex.test(userData.username)) {
+      throw new AppError(Messages.INVALID_USERNAME, HttpStatus.BAD_REQUEST);
+    }
+
     const existingUsername = await this._userRepository.findByUsername(userData.username);
-    if (existingUsername) throw new AppError("Username already taken", HttpStatus.CONFLICT);
+    if (existingUsername) throw new AppError(Messages.USERNAME_TAKEN, HttpStatus.CONFLICT);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tempUserData = {
@@ -51,8 +56,8 @@ export class UserService implements IUserService {
     user: { id: string; username: string; email: string; profileImageUrl?: string | undefined };
   }> {
     const storedOtp = await getOTP(`otp:${email}`);
-    if (!storedOtp) throw new AppError("OTP has expired. Please request a new one.", HttpStatus.GONE);
-    if (storedOtp !== otp) throw new AppError("Invalid OTP. Please check and try again.", HttpStatus.BAD_REQUEST);
+    if (!storedOtp) throw new AppError(Messages.OTP_EXPIRED, HttpStatus.GONE);
+    if (storedOtp !== otp) throw new AppError(Messages.INVALID_OTP_CHECK, HttpStatus.BAD_REQUEST);
 
     const tempUserDataStr = await getOTP(`tempUser:${email}`);
     if (!tempUserDataStr) throw new AppError(Messages.REGISTRATION_SESSION_EXPIRED, HttpStatus.GONE);
@@ -68,7 +73,7 @@ export class UserService implements IUserService {
 
     const user = await this._userRepository.findByEmail(email);
     if (!user) {
-      throw new Error("User creation failed");
+      throw new Error(Messages.USER_CREATION_FAILED);
     }
 
     let profileImageUrl = user.profileImageUrl;
@@ -76,7 +81,7 @@ export class UserService implements IUserService {
       try {
         profileImageUrl = await this._imageService.generateSignedUrl(user.profileImageKey);
       } catch (error) {
-        console.error("Failed to generate profile image URL:", error);
+        console.error(Messages.PROFILE_IMAGE_URL_GEN_FAILED, error);
       }
     }
 
@@ -106,10 +111,10 @@ export class UserService implements IUserService {
 
   async login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this._userRepository.findByEmail(email);
-    if (!user) throw new AppError("Email not found. Please register first.", HttpStatus.UNAUTHORIZED);
+    if (!user) throw new AppError(Messages.EMAIL_NOT_FOUND, HttpStatus.UNAUTHORIZED);
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) throw new AppError("Incorrect password. Please try again.", HttpStatus.UNAUTHORIZED);
+    if (!match) throw new AppError(Messages.INCORRECT_PASSWORD, HttpStatus.UNAUTHORIZED);
 
     const accessToken = createAccessToken(user.id, user.email, user.username);
     const refreshToken = createRefreshToken(user.id, user.email, user.username);
@@ -122,6 +127,8 @@ export class UserService implements IUserService {
   }
 
   async checkUsername(username: string): Promise<boolean> {
+    const usernameRegex = /^[a-zA-Z](?!.*[._]{2})[a-zA-Z0-9._]{2,18}[a-zA-Z0-9]$/;
+    if (!usernameRegex.test(username)) return false; 
     const user = await this._userRepository.findByUsername(username);
     return !!user;
   }
@@ -135,7 +142,7 @@ export class UserService implements IUserService {
       try {
         profileImageUrl = await this._imageService.generateSignedUrl(user.profileImageKey);
       } catch (error) {
-        console.error("Failed to generate profile image URL:", error);
+        console.error(Messages.PROFILE_IMAGE_URL_GEN_FAILED, error);
       }
     }
 
@@ -150,7 +157,7 @@ export class UserService implements IUserService {
 
   private async uploadToS3(userId: string, file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
     const result = await this._imageService.createImagesFromFiles(userId, [{ file, fileName, contentType }]);
-    if (result.length === 0) throw new Error("Upload failed");
+    if (result.length === 0) throw new Error(Messages.UPLOAD_FAILED);
     return { url: result[0].imageUrl, key: result[0].s3Key };
   }
 
@@ -158,7 +165,7 @@ export class UserService implements IUserService {
     try {
       await this._imageService.deleteByKey(key);
     } catch (error) {
-      console.error(`Failed to delete profile image ${key}:`, error);
+      console.error(`${Messages.PROFILE_IMAGE_DELETE_FAILED} ${key}:`, error);
     }
   }
 
@@ -179,7 +186,7 @@ export class UserService implements IUserService {
       try {
         profileImageUrl = await this._imageService.generateSignedUrl(updated.profileImageKey);
       } catch (error) {
-        console.error("Failed to generate profile image URL:", error);
+        console.error(Messages.PROFILE_IMAGE_URL_GEN_FAILED, error);
       }
     }
 
