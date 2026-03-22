@@ -114,7 +114,6 @@ const ImageUpload = ({ onUpload, onUploadStart, onUploadEnd }: ImageUploadProps)
       setSelectedImages([]);
       show('Images uploaded successfully!', 'success');
     } catch (error) {
-      console.error('Upload failed:', error);
       show('Upload failed. Please try again.', 'error');
     } finally {
       setIsUploading(false);

@@ -184,7 +184,6 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
           s3Key = results[0].key;
         }
       } catch (error) {
-        console.error("Image upload failed:", error);
         show("Failed to upload image.", "error");
         setImageUploading(false);
         return;
