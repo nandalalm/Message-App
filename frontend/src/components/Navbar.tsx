@@ -57,27 +57,27 @@ const Navbar = () => {
           >
             <MessageSquare size={18} className="text-indigo-600 sm:hidden" />
             <MessageSquare size={20} className="text-indigo-600 hidden sm:inline" />
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-800 leading-tight">MessageApp</h1>
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-800 leading-tight max-[500px]:hidden">MessageApp</h1>
           </button>
 
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setOpen((o) => !o)}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:bg-gray-50"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:bg-gray-50 min-w-[130px] sm:min-w-0 max-w-[220px] sm:max-w-none"
             >
               {profileImageUrl ? (
-                <img key={profileImageUrl} src={profileImageUrl} alt="Avatar" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover" />
+                <img key={profileImageUrl} src={profileImageUrl} alt="Avatar" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover shrink-0" />
               ) : (
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-xs sm:text-sm">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-xs sm:text-sm shrink-0">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="text-gray-800 font-medium text-sm sm:text-base max-w-[120px] sm:max-w-none truncate">{displayName}</span>
+              <span className="text-gray-800 font-medium text-sm sm:text-base whitespace-nowrap overflow-hidden">{displayName}</span>
               <svg className={`w-3 h-3 sm:w-4 sm:h-4 text-gray-600 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
             </button>
 
             {open && (
-              <div className="absolute right-0 mt-2 w-36 sm:w-44 bg-white border border-gray-200 rounded-md shadow-lg z-[70]">
+              <div className="absolute right-0 mt-2 w-48 sm:w-52 bg-white border border-gray-200 rounded-md shadow-lg z-[70]">
                 <button onClick={goProfile} className="w-full text-left px-3 sm:px-4 py-2 hover:bg-gray-50 text-sm">Profile</button>
                 <button onClick={handleLogoutClick} className="w-full text-left px-3 sm:px-4 py-2 text-red-600 hover:bg-gray-50 text-sm">Logout</button>
               </div>
