@@ -47,7 +47,7 @@ const Navbar = () => {
   }, []);
 
   return (
-    <nav className="sticky top-0 z-40 bg-white shadow-md border-b border-gray-200">
+    <nav className="sticky top-0 z-[60] bg-white shadow-md border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex justify-between items-center h-14 sm:h-16">
           <button
@@ -77,7 +77,7 @@ const Navbar = () => {
             </button>
 
             {open && (
-              <div className="absolute right-0 mt-2 w-36 sm:w-44 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+              <div className="absolute right-0 mt-2 w-36 sm:w-44 bg-white border border-gray-200 rounded-md shadow-lg z-[70]">
                 <button onClick={goProfile} className="w-full text-left px-3 sm:px-4 py-2 hover:bg-gray-50 text-sm">Profile</button>
                 <button onClick={handleLogoutClick} className="w-full text-left px-3 sm:px-4 py-2 text-red-600 hover:bg-gray-50 text-sm">Logout</button>
               </div>

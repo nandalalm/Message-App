@@ -257,7 +257,7 @@ const Chat: React.FC<ChatProps> = ({ socket, onSwitch, showSwitch }) => {
   return (
     <div className="flex flex-col h-[600px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
       {/* Header */}
-      <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3">
+      <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3 z-40">
         <div className="p-2 bg-white/20 rounded-lg">
           <MessageSquare className="text-white" size={20} />
         </div>

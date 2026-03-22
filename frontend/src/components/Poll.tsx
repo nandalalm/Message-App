@@ -41,7 +41,9 @@ const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, o
           </div>
           <button onClick={onClose} className="hover:rotate-90 transition-transform font-bold outline-none ml-2 shrink-0">✕</button>
         </div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1 break-words leading-relaxed">{poll.question}</p>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1 break-all leading-relaxed">
+          {poll.question.length > 250 ? poll.question.slice(0, 250) + "..." : poll.question}
+        </p>
         <div className="max-h-72 overflow-y-auto p-3 scrollbar-hide space-y-3">
           {totalVotes === 0 ? (
             <p className="text-center py-8 text-gray-400 text-xs italic">No votes have been cast yet.</p>
@@ -51,9 +53,9 @@ const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, o
               const percentage = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
               return (
                 <div key={idx} className="bg-gray-50 rounded-xl overflow-hidden">
-                  <div className="flex justify-between items-center px-3 py-2">
-                    <span className="text-xs font-bold text-gray-700 break-words leading-relaxed py-1">{opt.text}</span>
-                    <span className="text-[10px] font-black text-amber-600 ml-2 shrink-0">{opt.votes} vote{opt.votes !== 1 ? "s" : ""} · {percentage}%</span>
+                  <div className="flex justify-between items-start px-3 py-2">
+                    <span className="text-xs font-bold text-gray-700 break-all whitespace-normal leading-relaxed py-1 flex-1 min-w-0">{opt.text}</span>
+                    <span className="text-[10px] font-black text-amber-600 ml-2 mt-1 shrink-0">{opt.votes} vote{opt.votes !== 1 ? "s" : ""} · {percentage}%</span>
                   </div>
                   {optVoters.length > 0 ? (
                     <ul className="px-3 pb-2 space-y-1">
@@ -356,7 +358,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       )}
 
       {/* Header */}
-      <div className="bg-amber-500 px-6 py-4 flex justify-between items-center z-10 shrink-0">
+      <div className="bg-amber-500 px-6 py-4 flex justify-between items-center z-40 shrink-0">
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
           <div>
@@ -431,10 +433,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                 maxLength={400}
                 value={newQuestion}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  if (val.length <= 400) {
-                    setNewQuestion(val);
-                  }
+                  setNewQuestion(e.target.value.slice(0, 400));
                 }}
                 placeholder="What's on your mind?"
                 className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none resize-none scrollbar-hide"
@@ -449,25 +448,27 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                   maxLength={100}
                   value={opt}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    if (val.length <= 100) {
-                      const updated = [...newOptions];
-                      updated[idx] = val;
-                      setNewOptions(updated);
-                    }
+                    const val = e.target.value.slice(0, 100);
+                    const updated = [...newOptions];
+                    updated[idx] = val;
+                    setNewOptions(updated);
                   }}
                   placeholder={`Option ${idx + 1}`}
                   className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none resize-none scrollbar-hide"
                 />
               ))}
               <div className="flex flex-wrap gap-4 pt-1">
-                {newOptions.length < 12 && (
-                  <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option (Max 12)</button>
+                {newOptions.length < 12 ? (
+                  <>
+                    <button type="button" onClick={addOption} className="text-amber-600 text-[10px] font-bold hover:underline">+ Add Option (Max 12)</button>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="includeNone" checked={includeNone} onChange={(e) => setIncludeNone(e.target.checked)} className="w-3 h-3 text-amber-500 rounded" />
+                      <label htmlFor="includeNone" className="text-[10px] font-bold text-gray-500 italic cursor-pointer">Include "None of the above"</label>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-amber-600 text-[10px] font-bold italic">Maximum 12 options reached</p>
                 )}
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="includeNone" checked={includeNone} onChange={(e) => setIncludeNone(e.target.checked)} className="w-3 h-3 text-amber-500 rounded" />
-                  <label htmlFor="includeNone" className="text-[10px] font-bold text-gray-500 italic cursor-pointer">Include "None of the above"</label>
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -566,7 +567,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                 <div className="flex items-center justify-between pt-1">
                   <div className="text-[10px] font-bold italic">
                     {poll.hasVoted ? (
-                      <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK ANOTHER TO SWITCH VOTE"}</span>
+                      <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK TO SWITCH VOTE"}</span>
                     ) : (
                       <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
                     )}

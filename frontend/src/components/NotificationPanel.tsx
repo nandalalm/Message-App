@@ -105,7 +105,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ type, onClose }) 
     <>
       <div
         ref={panelRef}
-        className={`absolute top-0 right-0 ${windowWidth <= 360 ? 'w-[260px]' : 'w-80 w-[280px] min-[400px]:w-80'} max-w-[95vw] sm:max-w-xs bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 mt-1 isolate`}
+        className={`absolute top-0 right-0 ${windowWidth <= 360 ? 'w-[260px]' : 'w-80 w-[280px] min-[400px]:w-80'} max-w-[95vw] sm:max-w-xs bg-white opacity-100 rounded-2xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 mt-1`}
         style={{ height: windowWidth <= 360 ? "380px" : "480px" }}
       >
         <div className={`${accentColor.bg} px-4 py-3 flex items-center justify-between shrink-0`}>
