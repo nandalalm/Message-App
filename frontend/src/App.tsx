@@ -4,7 +4,7 @@ import { refreshAccessToken } from "./redux/authSlice";
 import Router from "./routes/Router";
 import { fetchProfile } from "./redux/authSlice";
 import { fetchUnreadCounts, fetchNotifications } from "./redux/notificationsSlice";
-import { SocketProvider } from "./context/SocketContext";
+import { SocketProvider } from "./contexts/SocketContext";
 import GlobalToasts from "./components/GlobalToasts";
 
 const App = () => {

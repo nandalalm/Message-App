@@ -4,7 +4,7 @@ import Navbar from "../components/Navbar";
 import Chat from "../components/Chat";
 import PollComponent from "../components/Poll";
 import { fetchMuteSettings } from "../redux/notificationsSlice";
-import { useSocket } from "../context/useSocketHook";
+import { useSocket } from "../contexts/useSocketHook";
 
 const Home = () => {
   const dispatch = useAppDispatch();

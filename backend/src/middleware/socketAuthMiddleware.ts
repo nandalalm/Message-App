@@ -22,8 +22,7 @@ export const socketAuthMiddleware = (socket: AuthenticatedSocket, next: (err?: E
     }
 
     const decoded = jwt.verify(token, accessSecret) as JwtPayload & { id: string; email: string };
-    
-    // Attach user info to socket data for use in handlers
+
     socket.data.user = {
       id: decoded.id,
       email: decoded.email
