@@ -23,7 +23,7 @@ export class PollService implements IPollService {
       throw new Error(Messages.POLL_QUESTION_REQUIRED);
     }
 
-    if (trimmedQuestion.length < 5 || trimmedQuestion.length > 200) {
+    if (trimmedQuestion.length < 5 || trimmedQuestion.length > 400) {
       throw new Error(Messages.POLL_QUESTION_LENGTH);
     }
 

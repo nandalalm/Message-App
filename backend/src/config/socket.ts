@@ -121,10 +121,14 @@ export const initSocket = (server: HTTPServer) => {
         for (const recipient of recipients) {
           if (recipient.id === user.id) continue;
 
+          const truncatedQuestion = data.question.length > 100 
+            ? data.question.substring(0, 100) + "..." 
+            : data.question;
+
           const notification = await notificationService.createNotification({
             userId: recipient.id,
             type: "poll",
-            content: `${data.creatorName} created a new poll: "${data.question}"`,
+            content: `${data.creatorName} created a new poll: "${truncatedQuestion}"`,
             relatedId: poll.id,
           });
           io.to(recipient.id).emit("newNotification", notification);

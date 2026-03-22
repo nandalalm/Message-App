@@ -41,7 +41,7 @@ const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, o
           </div>
           <button onClick={onClose} className="hover:rotate-90 transition-transform font-bold outline-none ml-2 shrink-0">✕</button>
         </div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1 truncate">{poll.question}</p>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1 break-words leading-relaxed">{poll.question}</p>
         <div className="max-h-72 overflow-y-auto p-3 scrollbar-hide space-y-3">
           {totalVotes === 0 ? (
             <p className="text-center py-8 text-gray-400 text-xs italic">No votes have been cast yet.</p>
@@ -52,7 +52,7 @@ const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, o
               return (
                 <div key={idx} className="bg-gray-50 rounded-xl overflow-hidden">
                   <div className="flex justify-between items-center px-3 py-2">
-                    <span className="text-xs font-bold text-gray-700 truncate">{opt.text}</span>
+                    <span className="text-xs font-bold text-gray-700 break-words leading-relaxed py-1">{opt.text}</span>
                     <span className="text-[10px] font-black text-amber-600 ml-2 shrink-0">{opt.votes} vote{opt.votes !== 1 ? "s" : ""} · {percentage}%</span>
                   </div>
                   {optVoters.length > 0 ? (
@@ -267,15 +267,15 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       return;
     }
 
-    if (trimmedQuestion.length < 5 || trimmedQuestion.length > 200) {
-      addToast("Question must be between 5 and 200 characters.", "error", 2000);
+    if (trimmedQuestion.length < 5) {
+      addToast("Question must be at least 5 characters.", "error", 2000);
       return;
     }
 
-    if (/[^A-Za-z0-9\s?!.]/.test(trimmedQuestion)) {
+    /* if (/[^A-Za-z0-9\s?!.]/.test(trimmedQuestion)) {
       addToast("Only ? ! . special characters allowed in question.", "error", 2000);
       return;
-    }
+    } */
 
     const optionsToProcess = [...newOptions];
     if (includeNone) optionsToProcess.push("None of the above");
@@ -295,14 +295,14 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     }
 
     for (const opt of filteredOptions) {
-      if (opt.length < 1 || opt.length > 100) {
-        addToast(`Options must be between 1 and 100 characters.`, "error", 2000);
+      if (opt.length < 1) {
+        addToast(`Options cannot be empty.`, "error", 2000);
         return;
       }
-      if (/[^A-Za-z0-9\s]/.test(opt)) {
-        addToast(`Option "${opt}" contains forbidden characters.`, "error", 2000);
+      /* if (/[^A-Za-z0-9\s]/.test(opt)) {
+        addToast(`Options should only contain letters and numbers.`, "error", 2000);
         return;
-      }
+      } */
     }
 
     const uniqueOptions = new Set(filteredOptions.map(o => o.toLowerCase()));
@@ -424,31 +424,40 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
           <form onSubmit={handleCreatePoll} className="bg-white p-4 rounded-xl shadow-sm border border-amber-100 space-y-3 animate-slide-up">
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Question</label>
-              <input
+              <textarea
                 autoFocus
-                type="text"
                 required
+                rows={2}
+                maxLength={400}
                 value={newQuestion}
-                onChange={(e) => setNewQuestion(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.length <= 400) {
+                    setNewQuestion(val);
+                  }
+                }}
                 placeholder="What's on your mind?"
-                className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none resize-none scrollbar-hide"
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Options</label>
               {newOptions.map((opt, idx) => (
-                <input
+                <textarea
                   key={idx}
-                  type="text"
                   required={idx < 2}
+                  rows={1}
+                  maxLength={100}
                   value={opt}
                   onChange={(e) => {
-                    const updated = [...newOptions];
-                    updated[idx] = e.target.value;
-                    setNewOptions(updated);
+                    const val = e.target.value;
+                    if (val.length <= 100) {
+                      const updated = [...newOptions];
+                      updated[idx] = val;
+                      setNewOptions(updated);
+                    }
                   }}
                   placeholder={`Option ${idx + 1}`}
-                  className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none resize-none scrollbar-hide"
                 />
               ))}
               <div className="flex flex-wrap gap-4 pt-1">
@@ -496,13 +505,13 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             return (
               <div key={poll.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all hover:scale-[1.01]">
                 <div className="flex justify-between items-start">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-black text-amber-600 uppercase tracking-tighter bg-amber-50 px-1.5 py-0.5 rounded">
                         {isCreator ? "MY POLL" : poll.creatorName.toUpperCase()}
                       </span>
                     </div>
-                    <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1">{poll.question}</h3>
+                    <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1 break-all whitespace-normal">{poll.question}</h3>
                   </div>
                 </div>
 
@@ -518,11 +527,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                             handleVote(poll.id, idx);
                             (e.currentTarget as HTMLButtonElement).blur();
                           }}
-                          className={`w-full relative h-[42px] sm:h-11 rounded-xl overflow-hidden border transition-all duration-300 ${
+                          className={`w-full relative min-h-[42px] sm:min-h-[44px] flex flex-col rounded-xl border transition-all duration-300 ${
                             hasVotedThis 
                               ? "border-gray-200 bg-white" 
                               : "border-gray-100 bg-white hover:bg-gray-50 hover:border-gray-200"
-                          } outline-none focus:outline-none ring-0 focus:ring-0 active:scale-[0.98] select-none`}
+                          } outline-none focus:outline-none ring-0 focus:ring-0 active:scale-[0.98] select-none overflow-hidden`}
                         >
                           {/* Progress Bar - Shared Yellow Shade for all users */}
                           <div 
@@ -530,19 +539,19 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                             style={{ width: `${percentage}%` }} 
                           />
                           
-                          <div className="relative z-10 flex justify-between items-center px-4 h-full text-[13px] max-sm:text-[12px]">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          <div className="relative z-10 w-full flex justify-between items-start px-4 py-3 text-[13px] max-sm:text-[12px]">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
                                 hasVotedThis ? "border-amber-500 bg-amber-500 text-white" : "border-gray-300 bg-white"
                               }`}>
                                 {hasVotedThis && <CheckCircle2 size={12} strokeWidth={3} className="animate-in zoom-in duration-300 text-white" />}
                               </div>
-                              <span className={`font-semibold truncate transition-colors ${hasVotedThis ? "text-amber-900" : "text-gray-700"}`}>
+                              <span className={`font-semibold break-all whitespace-normal block w-full transition-colors text-left leading-tight ${hasVotedThis ? "text-amber-900" : "text-gray-700"}`}>
                                 {opt.text}
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <div className="flex items-center gap-2 shrink-0 ml-2 mt-0.5">
                               <span className={`font-bold text-[11px] ${hasVotedThis ? "text-amber-700" : "text-gray-500"}`}>
                                 {Math.round(percentage)}%
                               </span>
