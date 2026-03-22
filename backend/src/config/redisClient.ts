@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { Messages } from "../constants/messages";
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 let isRedisConnected = false;
@@ -10,7 +11,7 @@ export const connectRedis = async (): Promise<void> => {
     });
 
     redisClient.on("connect", () => {
-      console.log("Redis Connected");
+      console.log(Messages.REDIS_CONNECTED);
       isRedisConnected = true;
     });
 
@@ -20,7 +21,7 @@ export const connectRedis = async (): Promise<void> => {
 
     await redisClient.connect();
   } catch (err) {
-    console.warn(err,"Redis not available, using in-memory storage for OTP");
+    console.warn(err, Messages.REDIS_NOT_AVAILABLE);
     isRedisConnected = false;
     redisClient = null;
   }

@@ -7,6 +7,7 @@ import { IPollService } from "../interfaces/services/IPollService";
 import { INotificationService } from "../interfaces/services/INotificationService";
 import { IUserRepository } from "../interfaces/Repositories/IUserRepository";
 import { socketAuthMiddleware } from "../middleware/socketAuthMiddleware";
+import { Messages } from "../constants/messages";
 
 let io: SocketIOServer;
 
@@ -37,7 +38,7 @@ export const initSocket = (server: HTTPServer) => {
         const history = await messageService.getChatHistory(data?.limit || 20, data?.skip || 0);
         socket.emit("chatHistory", history);
       } catch (error) {
-        console.error("Error fetching chat history:", error);
+        console.error(Messages.SOCKET_CHAT_HISTORY_ERROR, error);
       }
     });
 
@@ -55,13 +56,13 @@ export const initSocket = (server: HTTPServer) => {
           const notification = await notificationService.createNotification({
             userId: recipient.id,
             type: "message",
-            content: `${data.senderName}: ${data.imageUrl ? "Sent an image" : data.content}`,
+            content: `${data.senderName}: ${data.imageUrl ? Messages.SENT_IMAGE : data.content}`,
             relatedId: savedMessage.id,
           });
           io.to(recipient.id).emit("newNotification", notification);
         }
       } catch (error) {
-        console.error("Error saving/sending message:", error);
+        console.error(Messages.SOCKET_SEND_MESSAGE_ERROR, error);
       }
     });
 
@@ -71,8 +72,8 @@ export const initSocket = (server: HTTPServer) => {
         const updatedMessage = await messageService.editMessage(user.id, data.messageId, data.content);
         io.emit("messageEdited", updatedMessage);
       } catch (error) {
-        console.error("Error editing message:", error);
-        socket.emit("error", { message: error instanceof Error ? error.message : "Error editing message" });
+        console.error(Messages.SOCKET_EDIT_MESSAGE_ERROR, error);
+        socket.emit("error", { message: error instanceof Error ? error.message : Messages.SOCKET_EDIT_MESSAGE_ERROR });
       }
     });
 
@@ -82,8 +83,8 @@ export const initSocket = (server: HTTPServer) => {
         const deletedMessage = await messageService.deleteMessage(user.id, data.messageId);
         io.emit("messageDeleted", deletedMessage);
       } catch (error) {
-        console.error("Error deleting message:", error);
-        socket.emit("error", { message: error instanceof Error ? error.message : "Error deleting message" });
+        console.error(Messages.SOCKET_DELETE_MESSAGE_ERROR, error);
+        socket.emit("error", { message: error instanceof Error ? error.message : Messages.SOCKET_DELETE_MESSAGE_ERROR });
       }
     });
 
@@ -97,7 +98,7 @@ export const initSocket = (server: HTTPServer) => {
         const polls = await pollService.getFilteredPolls(user.id, data.filterType, data.limit || 20, data.skip || 0);
         socket.emit("pollsList", polls);
       } catch (error) {
-        console.error("Error fetching polls:", error);
+        console.error(Messages.SOCKET_FETCH_POLLS_ERROR, error);
       }
     });
 
@@ -107,7 +108,7 @@ export const initSocket = (server: HTTPServer) => {
         const polls = await pollService.getFilteredPolls(user.id, "active", data.limit || 20, data.skip || 0);
         socket.emit("activePolls", polls);
       } catch (error) {
-        console.error("Error fetching polls:", error);
+        console.error(Messages.SOCKET_FETCH_POLLS_ERROR, error);
       }
     });
 
@@ -128,13 +129,13 @@ export const initSocket = (server: HTTPServer) => {
           const notification = await notificationService.createNotification({
             userId: recipient.id,
             type: "poll",
-            content: `${data.creatorName} created a new poll: "${truncatedQuestion}"`,
+            content: Messages.NEW_POLL_NOTIFICATION.replace('{creatorName}', data.creatorName).replace('{question}', truncatedQuestion),
             relatedId: poll.id,
           });
           io.to(recipient.id).emit("newNotification", notification);
         }
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        const errorMessage = error instanceof Error ? error.message : Messages.UNKNOWN_ERROR_OCCURRED;
         socket.emit("error", { message: errorMessage });
       }
     });
@@ -149,7 +150,7 @@ export const initSocket = (server: HTTPServer) => {
           io.emit("voteUpdated", neutralPoll);
         }
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        const errorMessage = error instanceof Error ? error.message : Messages.UNKNOWN_ERROR_OCCURRED;
         socket.emit("error", { message: errorMessage });
       }
     });
@@ -163,7 +164,7 @@ export const initSocket = (server: HTTPServer) => {
 
 export const getIO = () => {
   if (!io) {
-    throw new Error("Socket.IO not initialized!");
+    throw new Error(Messages.SOCKET_NOT_INITIALIZED);
   }
   return io;
 };

@@ -203,7 +203,7 @@ export const serveImage = async (req: Request, res: Response, next: NextFunction
       try {
         const jwt = (await import('jsonwebtoken')).default;
         const accessSecret = process.env.ACCESS_TOKEN_SECRET;
-        if (!accessSecret) throw new Error("Missing ACCESS_TOKEN_SECRET");
+        if (!accessSecret) throw new Error(Messages.MISSING_ACCESS_TOKEN_SECRET);
         const decoded = jwt.verify(authToken, accessSecret) as AuthenticatedJwtPayload;
         userId = decoded.id;
       } catch {
@@ -215,7 +215,7 @@ export const serveImage = async (req: Request, res: Response, next: NextFunction
       try {
         const jwt = (await import('jsonwebtoken')).default;
         const accessSecret = process.env.ACCESS_TOKEN_SECRET;
-        if (!accessSecret) throw new Error("Missing ACCESS_TOKEN_SECRET");
+        if (!accessSecret) throw new Error(Messages.MISSING_ACCESS_TOKEN_SECRET);
         const decoded = jwt.verify(token as string, accessSecret) as AuthenticatedJwtPayload;
         userId = decoded.id;
       } catch {

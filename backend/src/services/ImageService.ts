@@ -37,7 +37,7 @@ export class ImageService implements IImageService {
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
     if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error("AWS configuration missing");
+      throw new Error(Messages.AWS_S3_CONFIG_MISSING);
     }
 
     this._s3Client = new S3Client({
@@ -172,8 +172,8 @@ export class ImageService implements IImageService {
       const deleted = await this._imageRepository.deleteByUserIdAndId(userId, imageId);
       return deleted;
     } catch (error) {
-      console.error(`Failed to delete image ${imageId}:`, error);
-      console.warn(`S3 deletion failed for image ${imageId}, proceeding with database deletion`);
+      console.error(`${Messages.IMAGE_DELETE_FAILED} ${imageId}:`, error);
+      console.warn(`${Messages.S3_DELETE_FAILED_PROCEEDING_DB} ${imageId}`);
       return await this._imageRepository.deleteByUserIdAndId(userId, imageId);
     }
   }
@@ -194,8 +194,8 @@ export class ImageService implements IImageService {
       const signedUrl = await getSignedUrl(this._s3Client, command, { expiresIn });
       return signedUrl;
     } catch (error) {
-      console.error('Failed to generate signed URL:', error);
-      throw new Error(`Failed to generate signed URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(Messages.SIGNED_URL_GEN_FAILED, error);
+      throw new Error(Messages.SIGNED_URL_GEN_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
     }
   }
 
@@ -206,7 +206,7 @@ export class ImageService implements IImageService {
           const signedUrl = await this.generateSignedUrl(image.s3Key);
           return { ...image.toObject(), signedUrl };
         } catch (error) {
-          console.error(`Failed to generate signed URL for image ${(image as IImage)._id}:`, error);
+          console.error(`${Messages.SIGNED_URL_GEN_FAILED_FOR_IMAGE} ${(image as IImage)._id}:`, error);
           return { ...image.toObject(), signedUrl: image.imageUrl };
         }
       })
@@ -227,8 +227,8 @@ export class ImageService implements IImageService {
 
       await this._s3Client.send(command);
     } catch (error) {
-      console.error(`Failed to delete S3 object ${s3Key}:`, error);
-      throw new Error(`Failed to delete S3 object: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`${Messages.S3_OBJECT_DELETE_FAILED} ${s3Key}:`, error);
+      throw new Error(Messages.S3_OBJECT_DELETE_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
     }
   }
 

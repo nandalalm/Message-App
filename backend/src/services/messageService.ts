@@ -5,6 +5,7 @@ import { IImageService } from "../interfaces/services/IImageService";
 import { TYPES } from "../config/types";
 import { MessageDTO, CreateMessageDTO } from "../dtos/messageDtos";
 import { IMessage } from "../models/messageModel";
+import { Messages } from "../constants/messages";
 import mongoose from "mongoose";
 
 @injectable()
@@ -34,10 +35,10 @@ export class MessageService implements IMessageService {
 
   async editMessage(userId: string, messageId: string, content: string): Promise<MessageDTO> {
     const message = await this._messageRepository.findById(messageId);
-    if (!message) throw new Error("Message not found");
-    if (message.senderId.toString() !== userId) throw new Error("Unauthorized to edit this message");
-    if (message.imageUrl) throw new Error("Image messages cannot be edited");
-    if (message.editCount >= 1) throw new Error("Message can only be edited once");
+    if (!message) throw new Error(Messages.MESSAGE_NOT_FOUND);
+    if (message.senderId.toString() !== userId) throw new Error(Messages.UNAUTHORIZED_EDIT);
+    if (message.imageUrl) throw new Error(Messages.IMAGE_EDIT_NOT_ALLOWED);
+    if (message.editCount >= 1) throw new Error(Messages.EDIT_LIMIT_REACHED);
 
     message.content = content;
     message.isEdited = true;
@@ -49,11 +50,11 @@ export class MessageService implements IMessageService {
 
   async deleteMessage(userId: string, messageId: string): Promise<MessageDTO> {
     const message = await this._messageRepository.findById(messageId);
-    if (!message) throw new Error("Message not found");
-    if (message.senderId.toString() !== userId) throw new Error("Unauthorized to delete this message");
+    if (!message) throw new Error(Messages.MESSAGE_NOT_FOUND);
+    if (message.senderId.toString() !== userId) throw new Error(Messages.UNAUTHORIZED_DELETE);
 
     message.isDeleted = true;
-    message.content = "This message was deleted";
+    message.content = Messages.MESSAGE_DELETED_CONTENT;
     await message.save();
     return await this.mapToDTO(message);
   }
@@ -72,7 +73,6 @@ export class MessageService implements IMessageService {
       try {
         freshImageUrl = await this._imageService.generateSignedUrl(message.s3Key);
       } catch (error) {
-        console.error(`Failed to generate fresh signed URL for message ${message._id}:`, error);
       }
     }
 

@@ -52,7 +52,7 @@ export class PollService implements IPollService {
 
     const userTodayCount = await this._pollRepository.getTodayPollCountForUser(data.creatorId);
     if (userTodayCount >= 10) {
-      throw new Error("Daily poll limit (10) reached. You can create more polls tomorrow.");
+      throw new Error(Messages.POLL_DAILY_LIMIT);
     }
 
 
@@ -72,7 +72,7 @@ export class PollService implements IPollService {
   async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<PollDTO> {
     const poll = await this._pollRepository.vote(pollId, optionIndex, userId, userName);
     if (!poll) {
-      throw new Error("Unable to vote. Poll may be inactive or concluded.");
+      throw new Error(Messages.VOTE_FAILED);
     }
     return this.mapToDTO(poll, userId);
   }

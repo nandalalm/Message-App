@@ -24,10 +24,10 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 export const checkUsername = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username } = req.body;
-    if (!username) return res.status(HttpStatus.BAD_REQUEST).json({ message: "Username is required" });
+    if (!username) return res.status(HttpStatus.BAD_REQUEST).json({ message: Messages.USERNAME_REQUIRED });
     const exists = await userService.checkUsername(username);
     if (exists) {
-      return res.status(HttpStatus.CONFLICT).json({ exists, message: "Username already taken" });
+      return res.status(HttpStatus.CONFLICT).json({ exists, message: Messages.USERNAME_TAKEN });
     }
     res.status(HttpStatus.OK).json({ exists });
   } catch (err) {
@@ -140,7 +140,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     
     const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
     if (!refreshSecret) {
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: "Server configuration error" });
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: Messages.SERVER_CONFIG_ERROR });
     }
     
     jwt.verify(token, refreshSecret, (err: VerifyErrors | null, decoded: string | JwtPayload | undefined) => {
@@ -149,7 +149,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
       const payload = decoded as CustomJwtPayload;
       const accessSecret = process.env.ACCESS_TOKEN_SECRET;
       if (!accessSecret) {
-        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: "Server configuration error" });
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: Messages.SERVER_CONFIG_ERROR });
       }
       
       const accessToken = jwt.sign({ id: payload.id, email: payload.email, username: payload.username }, accessSecret, {
@@ -227,7 +227,7 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
     if (authToken) {
       try {
         const accessSecret = process.env.ACCESS_TOKEN_SECRET;
-        if (!accessSecret) throw new Error("Missing ACCESS_TOKEN_SECRET");
+        if (!accessSecret) throw new Error(Messages.MISSING_ACCESS_TOKEN_SECRET);
         const decoded = jwt.verify(authToken, accessSecret) as JwtPayload & { id: string };
         userId = decoded.id;
       } catch {
@@ -238,7 +238,7 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
     if (!userId && token) {
       try {
         const accessSecret = process.env.ACCESS_TOKEN_SECRET;
-        if (!accessSecret) throw new Error("Missing ACCESS_TOKEN_SECRET");
+        if (!accessSecret) throw new Error(Messages.MISSING_ACCESS_TOKEN_SECRET);
         const decoded = jwt.verify(token as string, accessSecret) as JwtPayload & { id: string };
         userId = decoded.id;
       } catch {
@@ -252,7 +252,7 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
 
     const s3Key = await userService.getProfileImageKey(userId);
     if (!s3Key) {
-      return res.status(HttpStatus.NOT_FOUND).json({ message: "Profile image not found" });
+      return res.status(HttpStatus.NOT_FOUND).json({ message: Messages.PROFILE_IMAGE_NOT_FOUND });
     }
 
     const signedUrl = await imageService.generateSignedUrl(s3Key, 300);
@@ -261,7 +261,7 @@ export const serveProfileImage = async (req: Request, res: Response, next: NextF
     const imageResponse = await fetch(signedUrl);
     
     if (!imageResponse.ok) {
-      return res.status(HttpStatus.NOT_FOUND).json({ message: "Profile image not found" });
+      return res.status(HttpStatus.NOT_FOUND).json({ message: Messages.PROFILE_IMAGE_NOT_FOUND });
     }
     
     res.set({
@@ -312,7 +312,7 @@ export const deleteProfilePhoto = async (req: Request, res: Response, next: Next
     }
     const updated = await userService.deleteProfileImage(userId);
     
-    return res.status(HttpStatus.OK).json({ user: updated, message: "Profile image removed successfully" });
+    return res.status(HttpStatus.OK).json({ user: updated, message: Messages.PROFILE_IMAGE_REMOVED });
   } catch (err) {
     next(err);
   }

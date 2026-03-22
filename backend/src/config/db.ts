@@ -1,16 +1,16 @@
 import mongoose from "mongoose";
 import { logError, logInfo } from "../middleware/loggerMiddleware";
+import { Messages } from "../constants/messages";
 
 export const connectDB = async (): Promise<void> => {
   try {
     const mongoUri = process.env.MONGO_URI;
     if (!mongoUri) {
-      throw new Error("MONGO_URI environment variable is not defined");
+      throw new Error(Messages.MONGO_URI_UNDEFINED);
     }
     await mongoose.connect(mongoUri);
-    console.log("MongoDB Connected");
+    console.log(Messages.MONGODB_CONNECTED);
 
-    // Ensure collections are capped
     const db = mongoose.connection.db;
     if (db) {
       const collections = await db.listCollections().toArray();
@@ -28,9 +28,9 @@ export const connectDB = async (): Promise<void> => {
       await ensureCapped("polls", 5 * 1024 * 1024, 100);
     }
 
-    logInfo("MongoDB Connected successfully");
+    logInfo(Messages.MONGODB_CONNECTED_SUCCESS);
   } catch (err) {
-    console.error("MongoDB Connection Error:", err);
+    console.error(`${Messages.MONGODB_CONNECTION_ERROR}:`, err);
     logError(err as Error, undefined, { context: "Database connection" });
     process.exit(1);
   }

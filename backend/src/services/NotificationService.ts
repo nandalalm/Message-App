@@ -6,6 +6,7 @@ import { IUserRepository } from "../interfaces/Repositories/IUserRepository";
 import { TYPES } from "../config/types";
 import { NotificationDTO, CreateNotificationDTO, MuteSettingsDTO, UnreadCountsDTO } from "../dtos/notificationDtos";
 import { INotification } from "../models/notificationModel";
+import { Messages } from "../constants/messages";
 import mongoose from "mongoose";
 
 @injectable()
@@ -53,9 +54,6 @@ export class NotificationService implements INotificationService {
   }
 
   async markAsRead(userId: string, notificationId: string): Promise<NotificationDTO | null> {
-    // We don't know the type from the ID alone easily without checking both or changing the API.
-    // However, usually the frontend knows the context. 
-    // For now, check both repositories.
     let notification = await this._messageRepository.markAsRead(notificationId, userId);
     if (!notification) {
       notification = await this._pollRepository.markAsRead(notificationId, userId);
@@ -77,7 +75,7 @@ export class NotificationService implements INotificationService {
 
   async toggleMute(userId: string, type: string): Promise<MuteSettingsDTO> {
     const user = await this._userRepository.findById(userId);
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error(Messages.USER_NOT_FOUND);
     const muted = user.mutedNotificationTypes ?? [];
     const isMuted = muted.includes(type);
     const updated = isMuted ? muted.filter((t) => t !== type) : [...muted, type];
