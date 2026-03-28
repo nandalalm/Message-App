@@ -73,6 +73,7 @@ export class MessageService implements IMessageService {
       try {
         freshImageUrl = await this._imageService.generateSignedUrl(message.s3Key);
       } catch (error) {
+        console.error(error);
       }
     }
 

@@ -29,6 +29,7 @@ export const uploadToBackend = async (files: { file: File; title: string }[]): P
       title: img.title
     }));
   } catch (error) {
+    console.error(error);
     throw new Error('Failed to upload images to server');
   }
 };

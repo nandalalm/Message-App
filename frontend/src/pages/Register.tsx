@@ -5,15 +5,30 @@ import { validateForm } from "../utils/validateForm";
 import { AuthApi } from "../services";
 import type { RegisterData } from "../types/auth";
 
+type RegisterFormData = {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+
+type RegisterField = keyof RegisterFormData;
+
 const Register = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterFormData>({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<RegisterField, boolean>>({
+    username: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +37,16 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = validateForm(registerSchema, formData);
-    if (!result.valid) return setErrors(result.errors);
+    if (!result.valid) {
+      setErrors(result.errors);
+      setTouched({
+        username: true,
+        email: true,
+        password: true,
+        confirmPassword: true,
+      });
+      return;
+    }
     
     setErrors({});
     setLoading(true);
@@ -66,22 +90,47 @@ const Register = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const field = name as RegisterField;
+    const nextFormData = { ...formData, [field]: value };
+    const result = validateForm(registerSchema, nextFormData);
+    const fieldErrors = result.valid ? {} : (result.errors as Partial<Record<RegisterField, string>>);
+
+    setFormData(nextFormData);
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setErrors((prev) => {
+      const nextErrors = { ...prev };
+      if (result.valid) {
+        delete nextErrors[field];
+      } else if (fieldErrors[field]) {
+        nextErrors[field] = fieldErrors[field];
+      } else {
+        delete nextErrors[field];
+      }
+      return nextErrors;
+    });
+  };
+
+  const getInputBorderClass = (field: RegisterField) => {
+    if (errors[field]) return "border-red-500";
+    if (touched[field] && formData[field].trim() !== "") return "border-green-500";
+    return "border-gray-300";
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-8">
       <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-6 sm:p-8">
         <h2 className="text-2xl font-semibold mb-6 text-center text-gray-800">Create Account</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
+            <label htmlFor="register-username" className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
             <input
+              id="register-username"
               type="text"
               name="username"
               placeholder="Username"
-              className={`border w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.username ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`border w-full p-3 rounded-lg focus:outline-none transition-colors ${getInputBorderClass("username")}`}
               value={formData.username}
               onChange={handleChange}
             />
@@ -89,76 +138,86 @@ const Register = () => {
           </div>
 
           <div>
+            <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
+              id="register-email"
               type="email"
               name="email"
               placeholder="Email"
-              className={`border w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.email ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`border w-full p-3 rounded-lg focus:outline-none transition-colors ${getInputBorderClass("email")}`}
               value={formData.email}
               onChange={handleChange}
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
 
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              placeholder="Password"
-              className={`border w-full p-3 pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.password ? "border-red-500" : "border-gray-300"
-              }`}
-              value={formData.password}
-              onChange={handleChange}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
-              {showPassword ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-            </button>
+          <div>
+            <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="register-password"
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="Password"
+                className={`border w-full p-3 pr-12 rounded-lg focus:outline-none transition-colors ${getInputBorderClass("password")}`}
+                value={formData.password}
+                onChange={handleChange}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
           </div>
 
-          <div className="relative">
-            <input
-              type={showConfirmPassword ? "text" : "password"}
-              name="confirmPassword"
-              placeholder="Confirm Password"
-              className={`border w-full p-3 pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                errors.confirmPassword ? "border-red-500" : "border-gray-300"
-              }`}
-              value={formData.confirmPassword}
-              onChange={handleChange}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
-              {showConfirmPassword ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-            </button>
+          <div>
+            <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <input
+                id="register-confirm-password"
+                type={showConfirmPassword ? "text" : "password"}
+                name="confirmPassword"
+                placeholder="Confirm Password"
+                className={`border w-full p-3 pr-12 rounded-lg focus:outline-none transition-colors ${getInputBorderClass("confirmPassword")}`}
+                value={formData.confirmPassword}
+                onChange={handleChange}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showConfirmPassword ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
           </div>
 

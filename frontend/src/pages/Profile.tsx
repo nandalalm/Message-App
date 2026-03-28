@@ -63,6 +63,7 @@ const Profile = () => {
       dispatch(setUser(updatedUser));
       show('Profile image updated', 'success');
     } catch (err) {
+      console.error(err);
       show('Failed to upload profile image', 'error');
       setLocalPreviewUrl(null); // Clear on error
     } finally {
@@ -82,6 +83,7 @@ const Profile = () => {
       dispatch(setUser(updatedUser));
       show('Profile image removed', 'success');
     } catch (err) {
+      console.error(err);
       show('Failed to remove profile image', 'error');
     } finally {
       setUploading(false);

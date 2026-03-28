@@ -7,7 +7,9 @@ export const validateForm = <T>(schema: z.ZodSchema<T>, data: unknown) => {
   const errors: Record<string, string> = {};
   parsed.error.issues.forEach((issue) => {
     const field = issue.path[0] as string;
-    errors[field] = issue.message;
+    if (!(field in errors)) {
+      errors[field] = issue.message;
+    }
   });
 
   return { valid: false, errors };

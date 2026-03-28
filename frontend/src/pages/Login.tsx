@@ -10,6 +10,8 @@ import { AuthApi } from "../services";
 import type { LoginCredentials } from "../types/auth";
 import { z } from "zod";
 
+type LoginField = keyof LoginCredentials;
+
 const Login = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ const Login = () => {
   const [formData, setFormData] = useState<LoginCredentials>({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [touched, setTouched] = useState<Record<LoginField, boolean>>({ email: false, password: false });
   const { show } = useToast();
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [forgotEmail, setForgotEmail] = useState("");
@@ -34,14 +37,41 @@ const Login = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const result = validateForm(loginSchema, formData);
-    if (!result.valid) return setErrors(result.errors);
+    if (!result.valid) {
+      setErrors(result.errors);
+      setTouched({ email: true, password: true });
+      return;
+    }
     setErrors({});
     dispatch(loginUser(result.data as { email: string; password: string }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const field = name as LoginField;
+    const nextFormData = { ...formData, [field]: value };
+    const result = validateForm(loginSchema, nextFormData);
+    const fieldErrors = result.valid ? {} : (result.errors as Partial<Record<LoginField, string>>);
+
+    setFormData(nextFormData);
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setErrors((prev) => {
+      const nextErrors = { ...prev };
+      if (result.valid) {
+        delete nextErrors[field];
+      } else if (fieldErrors[field]) {
+        nextErrors[field] = fieldErrors[field];
+      } else {
+        delete nextErrors[field];
+      }
+      return nextErrors;
+    });
+  };
+
+  const getInputBorderClass = (field: LoginField) => {
+    if (errors[field]) return "border-red-500";
+    if (touched[field] && formData[field].trim() !== "") return "border-green-500";
+    return "border-gray-300";
   };
 
   return (
@@ -49,39 +79,45 @@ const Login = () => {
       <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-6 sm:p-8">
       <h2 className="text-2xl font-semibold mb-4 text-center">{mode === "login" ? "Login" : "Forgot Password"}</h2>
       {mode === "login" ? (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div>
+          <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">
+            Email
+          </label>
           <input
+            id="login-email"
             type="email"
             name="email"
             placeholder="Email"
-            className={`border w-full p-2 rounded ${
-              errors.email ? "border-red-500" : "border-gray-300"
-            }`}
+            className={`border w-full p-2 rounded focus:outline-none ${getInputBorderClass("email")}`}
             value={formData.email}
             onChange={handleChange}
           />
           {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
         </div>
 
-        <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            className={`border w-full p-2 pr-10 rounded ${
-              errors.password ? "border-red-500" : "border-gray-300"
-            }`}
-            onChange={handleChange}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-2 top-2 text-gray-500 hover:text-gray-700"
-          >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
+        <div>
+          <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              className={`border w-full p-2 pr-10 rounded focus:outline-none ${getInputBorderClass("password")}`}
+              onChange={handleChange}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
           {errors.password && (
             <p className="text-red-500 text-xs mt-1">{errors.password}</p>
           )}
@@ -132,10 +168,15 @@ const Login = () => {
               setForgotLoading(false);
             }
           }}
+          noValidate
           className="space-y-4"
         >
           <div>
+            <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
+              id="forgot-email"
               type="email"
               name="forgotEmail"
               placeholder="Enter your email"
