@@ -11,6 +11,14 @@ import { Messages } from "../constants/messages";
 
 let io: SocketIOServer;
 
+const getErrorMessage = (error: unknown, fallbackMessage: string): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+};
+
 export const initSocket = (server: HTTPServer) => {
   io = new SocketIOServer(server, {
     cors: {
@@ -37,8 +45,8 @@ export const initSocket = (server: HTTPServer) => {
       try {
         const history = await messageService.getChatHistory(data?.limit || 20, data?.skip || 0);
         socket.emit("chatHistory", history);
-      } catch (error) {
-        console.error(Messages.SOCKET_CHAT_HISTORY_ERROR, error);
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_CHAT_HISTORY_ERROR) });
       }
     });
 
@@ -61,8 +69,8 @@ export const initSocket = (server: HTTPServer) => {
           });
           io.to(recipient.id).emit("newNotification", notification);
         }
-      } catch (error) {
-        console.error(Messages.SOCKET_SEND_MESSAGE_ERROR, error);
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_SEND_MESSAGE_ERROR) });
       }
     });
 
@@ -71,9 +79,8 @@ export const initSocket = (server: HTTPServer) => {
         if (!user) return;
         const updatedMessage = await messageService.editMessage(user.id, data.messageId, data.content);
         io.emit("messageEdited", updatedMessage);
-      } catch (error) {
-        console.error(Messages.SOCKET_EDIT_MESSAGE_ERROR, error);
-        socket.emit("error", { message: error instanceof Error ? error.message : Messages.SOCKET_EDIT_MESSAGE_ERROR });
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_EDIT_MESSAGE_ERROR) });
       }
     });
 
@@ -82,9 +89,8 @@ export const initSocket = (server: HTTPServer) => {
         if (!user) return;
         const deletedMessage = await messageService.deleteMessage(user.id, data.messageId);
         io.emit("messageDeleted", deletedMessage);
-      } catch (error) {
-        console.error(Messages.SOCKET_DELETE_MESSAGE_ERROR, error);
-        socket.emit("error", { message: error instanceof Error ? error.message : Messages.SOCKET_DELETE_MESSAGE_ERROR });
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_DELETE_MESSAGE_ERROR) });
       }
     });
 
@@ -97,8 +103,8 @@ export const initSocket = (server: HTTPServer) => {
         if (!user) return;
         const polls = await pollService.getFilteredPolls(user.id, data.filterType, data.limit || 20, data.skip || 0);
         socket.emit("pollsList", polls);
-      } catch (error) {
-        console.error(Messages.SOCKET_FETCH_POLLS_ERROR, error);
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_FETCH_POLLS_ERROR) });
       }
     });
 
@@ -107,12 +113,12 @@ export const initSocket = (server: HTTPServer) => {
         if (!user) return;
         const polls = await pollService.getFilteredPolls(user.id, "active", data.limit || 20, data.skip || 0);
         socket.emit("activePolls", polls);
-      } catch (error) {
-        console.error(Messages.SOCKET_FETCH_POLLS_ERROR, error);
+      } catch (error: unknown) {
+        socket.emit("error", { message: getErrorMessage(error, Messages.SOCKET_FETCH_POLLS_ERROR) });
       }
     });
 
-    socket.on("createPoll", async (data: { creatorId: string; creatorName: string; question: string; options: string[]; durationMinutes: number; allowMultiple: boolean }) => {
+    socket.on("createPoll", async (data: { creatorId: string; creatorName: string; question: string; options: string[]; allowMultiple: boolean; expiresAt: string }) => {
       try {
         if (!user) return;
         const poll = await pollService.createPoll(data);
@@ -135,8 +141,7 @@ export const initSocket = (server: HTTPServer) => {
           io.to(recipient.id).emit("newNotification", notification);
         }
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : Messages.UNKNOWN_ERROR_OCCURRED;
-        socket.emit("error", { message: errorMessage });
+        socket.emit("error", { message: getErrorMessage(error, Messages.UNKNOWN_ERROR_OCCURRED) });
       }
     });
 
@@ -150,8 +155,7 @@ export const initSocket = (server: HTTPServer) => {
           io.emit("voteUpdated", neutralPoll);
         }
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : Messages.UNKNOWN_ERROR_OCCURRED;
-        socket.emit("error", { message: errorMessage });
+        socket.emit("error", { message: getErrorMessage(error, Messages.UNKNOWN_ERROR_OCCURRED) });
       }
     });
 

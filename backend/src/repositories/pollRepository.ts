@@ -16,6 +16,9 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
       case "myPolls":
         query = { creatorId: userId };
         break;
+      case "active":
+        query = { expiresAt: { $gt: new Date() } };
+        break;
       default:
         query = {};
     }
@@ -36,17 +39,21 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
 
   async vote(pollId: string, optionIndex: number, userId: string, userName: string): Promise<IPoll | null> {
     const poll = await this.model.findById(pollId);
-    if (!poll) return null;
-    // isActive check removed
+    const pollExpiryDate = poll ? this.getPollExpiryDate(poll) : null;
+    if (!poll || !pollExpiryDate || pollExpiryDate.getTime() <= Date.now()) return null;
+
+    const activePollFilter: FilterQuery<IPoll> = {
+      _id: pollId,
+      expiresAt: { $gt: new Date() }
+    };
 
     const existingVote = poll.voters.find(v => v.userId === userId && v.optionIndex === optionIndex);
     const anyExistingVote = poll.voters.find(v => v.userId === userId);
 
     if (poll.allowMultiple) {
       if (existingVote) {
-        // Toggle OFF (Deselect)
         return this.model.findOneAndUpdate(
-          { _id: pollId },
+          activePollFilter,
           {
             $inc: { [`options.${optionIndex}.votes`]: -1 },
             $pull: { voters: { userId, optionIndex } }
@@ -54,9 +61,8 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
           { new: true }
         ).exec();
       } else {
-        // Toggle ON
         return this.model.findOneAndUpdate(
-          { _id: pollId },
+          activePollFilter,
           {
             $inc: { [`options.${optionIndex}.votes`]: 1 },
             $push: { voters: { userId, userName, optionIndex } }
@@ -67,9 +73,8 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
     } else {
       if (anyExistingVote) {
         if (anyExistingVote.optionIndex === optionIndex) {
-          // Deselect same option
           return this.model.findOneAndUpdate(
-            { _id: pollId },
+            activePollFilter,
             {
               $inc: { [`options.${optionIndex}.votes`]: -1 },
               $pull: { voters: { userId, optionIndex } }
@@ -77,10 +82,9 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
             { new: true }
           ).exec();
         } else {
-          // Switch vote
           const oldIndex = anyExistingVote.optionIndex;
           return this.model.findOneAndUpdate(
-            { _id: pollId },
+            activePollFilter,
             {
               $inc: {
                 [`options.${oldIndex}.votes`]: -1,
@@ -95,9 +99,8 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
           ).exec();
         }
       } else {
-        // Fresh vote
         return this.model.findOneAndUpdate(
-          { _id: pollId },
+          activePollFilter,
           {
             $inc: { [`options.${optionIndex}.votes`]: 1 },
             $push: { voters: { userId, userName, optionIndex } }
@@ -106,5 +109,17 @@ export class PollRepository extends BaseRepository<IPoll> implements IPollReposi
         ).exec();
       }
     }
+  }
+
+  private getPollExpiryDate(poll: IPoll): Date | null {
+    if (poll.expiresAt instanceof Date && !Number.isNaN(poll.expiresAt.getTime())) {
+      return poll.expiresAt;
+    }
+
+    if (poll.createdAt instanceof Date && !Number.isNaN(poll.createdAt.getTime())) {
+      return poll.createdAt;
+    }
+
+    return null;
   }
 }

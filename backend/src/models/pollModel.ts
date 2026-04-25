@@ -11,7 +11,8 @@ export interface IPoll extends Document {
   question: string;
   options: IPollOption[];
   allowMultiple: boolean;
-  voters: { userId: string; userName: string; optionIndex: number }[]; 
+  expiresAt: Date;
+  voters: { userId: string; userName: string; optionIndex: number }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +42,10 @@ const PollSchema: Schema = new Schema(
       type: Boolean,
       default: false,
     },
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
     voters: [
       {
         userId: { type: String, required: true },
@@ -51,7 +56,7 @@ const PollSchema: Schema = new Schema(
   },
   {
     timestamps: true,
-    capped: { size: 5 * 1024 * 1024, max: 100 } // 5MB size limit or 100 documents
+    capped: { size: 5 * 1024 * 1024, max: 100 }
   }
 );
 

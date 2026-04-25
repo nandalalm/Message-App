@@ -15,8 +15,9 @@ interface Poll {
   creatorName: string;
   question: string;
   options: PollOption[];
-
   allowMultiple: boolean;
+  expiresAt: string;
+  isExpired: boolean;
   hasVoted: boolean;
   votedOptionIndices?: number[];
   voters: { userId: string; userName: string; optionIndex: number }[];
@@ -27,6 +28,39 @@ interface Toast {
   message: string;
   type: "success" | "error";
 }
+
+const formatDateTimeLocalValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const getDefaultExpiryValue = (): string => {
+  const defaultExpiry = new Date(Date.now() + 60 * 60 * 1000);
+  defaultExpiry.setSeconds(0, 0);
+  return formatDateTimeLocalValue(defaultExpiry);
+};
+
+const formatExpiryLabel = (expiresAt: string): string => {
+  const expiryDate = new Date(expiresAt);
+  if (Number.isNaN(expiryDate.getTime())) {
+    return "Unavailable";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(expiryDate);
+};
+
+const getPollExpiryTimestamp = (expiresAt: string): number => {
+  const expiryTimestamp = new Date(expiresAt).getTime();
+  return Number.isNaN(expiryTimestamp) ? 0 : expiryTimestamp;
+};
 
 
 const AllVotersModal: React.FC<{ poll: Poll; onClose: () => void }> = ({ poll, onClose }) => {
@@ -97,6 +131,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const [newQuestion, setNewQuestion] = useState("");
   const [newOptions, setNewOptions] = useState(["", ""]);
   const [allowMultiple, setAllowMultiple] = useState(false);
+  const [newExpiryAt, setNewExpiryAt] = useState(getDefaultExpiryValue);
   const [includeNone, setIncludeNone] = useState(false);
   const [activeVoterModal, setActiveVoterModal] = useState<Poll | null>(null);
   const [filter, setFilter] = useState<"all" | "myPolls">("all");
@@ -110,6 +145,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const pollsRef = useRef(polls);
 
   useEffect(() => {
@@ -122,6 +158,14 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     pollsRef.current = polls;
   }, [polls]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const addToast = (message: string, type: "success" | "error", duration: number = 1000) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -132,11 +176,17 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     pollsEndRef.current?.scrollIntoView({ behavior });
   };
 
+  const resetPollForm = () => {
+    setNewQuestion("");
+    setNewOptions(["", ""]);
+    setAllowMultiple(false);
+    setNewExpiryAt(getDefaultExpiryValue());
+    setIncludeNone(false);
+  };
+
   useEffect(() => {
     if (!socket || !user) return;
-    // Don't reset everything immediately to avoid flicker
     setHasMore(true);
-    // Only show skeleton if we have no polls at all
     if (pollsRef.current.length === 0) {
       setIsInitialLoading(true);
     }
@@ -148,8 +198,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
     const handlePollsList = (list: Poll[]) => {
       if (list.length < 20) setHasMore(false);
-      
-      const reversedList = [...list].reverse(); // Backend returns newest first, we want newest at bottom
+
+      const reversedList = [...list].reverse();
 
       const updateData = () => {
         if (isLoadingMore) {
@@ -159,7 +209,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
             return [...newPolls, ...prev].slice(-100);
           });
         } else {
-          // If we're not loading more, we're replacing the current view (e.g. filter change)
           setPolls(reversedList);
         }
         setIsLoadingMore(false);
@@ -178,7 +227,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     };
 
     const handlePollCreated = (poll: Poll) => {
-      setPolls(prev => [...prev, poll].slice(-100)); // Newest at bottom
+      setPolls(prev => [...prev, poll].slice(-100));
       setTimeout(() => scrollToBottom("smooth"), 100);
       if (poll.creatorId === user?.id) {
         addToast("Poll created successfully!", "success");
@@ -187,7 +236,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     const handleVoteUpdated = (updatedPoll: Poll) => {
       setPolls(prev => prev.map(p => {
         if (p.id === updatedPoll.id) {
-          // Robust derive: find my own votes in the public voter list
           const myVotes = updatedPoll.voters
             .filter(v => v.userId === user?.id)
             .map(v => v.optionIndex);
@@ -195,6 +243,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
           return {
             ...p,
             options: updatedPoll.options,
+            allowMultiple: updatedPoll.allowMultiple,
+            expiresAt: updatedPoll.expiresAt,
+            isExpired: updatedPoll.isExpired,
             voters: updatedPoll.voters,
             hasVoted: myVotes.length > 0,
             votedOptionIndices: myVotes,
@@ -231,10 +282,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     }
   }, [polls]);
 
-  // Global click outside listener to clear focus/selection from any option
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // If we click anywhere that isn't a button or input, blur the currently focused element
       const target = e.target as HTMLElement;
       if (!target.closest('button') && !target.closest('input') && document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
@@ -246,15 +295,13 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    
-    // Check for load more (scrolling to top)
+
     if (scrollTop === 0 && hasMore && !isLoadingMore && socket && polls.length > 0) {
       setIsLoadingMore(true);
       prevScrollHeightRef.current = scrollHeight;
       socket.emit("getPolls", { userId: user?.id, filterType: filter, limit: 20, skip: polls.length });
     }
 
-    // Show/hide scroll to bottom button
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
     setShowScrollButton(!isNearBottom && polls.length > 5);
   };
@@ -274,10 +321,10 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       return;
     }
 
-    /* if (/[^A-Za-z0-9\s?!.]/.test(trimmedQuestion)) {
-      addToast("Only ? ! . special characters allowed in question.", "error", 2000);
+    if (!newExpiryAt) {
+      addToast("Poll expiry date and time is required.", "error", 2000);
       return;
-    } */
+    }
 
     const optionsToProcess = [...newOptions];
     if (includeNone) optionsToProcess.push("None of the above");
@@ -301,10 +348,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         addToast(`Options cannot be empty.`, "error", 2000);
         return;
       }
-      /* if (/[^A-Za-z0-9\s]/.test(opt)) {
-        addToast(`Options should only contain letters and numbers.`, "error", 2000);
-        return;
-      } */
     }
 
     const uniqueOptions = new Set(filteredOptions.map(o => o.toLowerCase()));
@@ -313,6 +356,16 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       return;
     }
 
+    const parsedExpiry = new Date(newExpiryAt);
+    if (Number.isNaN(parsedExpiry.getTime())) {
+      addToast("Poll expiry date and time is invalid.", "error", 2000);
+      return;
+    }
+
+    if (parsedExpiry.getTime() <= Date.now()) {
+      addToast("Poll expiry must be a future date and time.", "error", 2000);
+      return;
+    }
 
     socket.emit("createPoll", {
       creatorId: user.id,
@@ -320,18 +373,22 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       question: trimmedQuestion,
       options: filteredOptions,
       allowMultiple: allowMultiple,
+      expiresAt: parsedExpiry.toISOString(),
     });
 
-    setNewQuestion("");
-    setNewOptions(["", ""]);
-    setAllowMultiple(false);
-    setIncludeNone(false);
+    resetPollForm();
     setIsCreating(false);
   };
 
-  const handleVote = (pollId: string, optionIndex: number) => {
+  const handleVote = (poll: Poll, optionIndex: number) => {
     if (!socket || !user) return;
-    socket.emit("vote", { pollId, optionIndex, userId: user.id, userName: user.username });
+    const pollIsExpired = poll.isExpired || getPollExpiryTimestamp(poll.expiresAt) <= currentTime;
+    if (pollIsExpired) {
+      addToast("This poll has expired.", "error", 2000);
+      return;
+    }
+
+    socket.emit("vote", { pollId: poll.id, optionIndex, userId: user.id, userName: user.username });
   };
 
   const addOption = () => {
@@ -340,7 +397,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   return (
     <div className="flex flex-col h-[600px] bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 relative">
-      {/* Toast System */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-[40%] pointer-events-none">
         {toasts.map(t => (
           <div key={t.id} className={`px-4 py-2 rounded-xl text-white text-xs font-bold shadow-2xl flex items-center gap-2 animate-slide-up pointer-events-auto ${t.type === "success" ? "bg-green-500" : "bg-red-500"}`}>
@@ -357,7 +413,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         />
       )}
 
-      {/* Header */}
       <div className="bg-amber-500 px-6 py-4 flex justify-between items-center z-40 shrink-0">
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/20 rounded-lg"><Vote size={20} /></div>
@@ -398,7 +453,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         </div>
       </div>
 
-      {/* Filter Bar */}
       {!isCreating && (
         <div className="bg-amber-50 px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide border-b border-amber-100 shrink-0">
           {[
@@ -416,7 +470,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         </div>
       )}
 
-      {/* Main Area */}
       <div 
         ref={pollsContainerRef}
         onScroll={handleScroll}
@@ -471,12 +524,26 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                 )}
               </div>
             </div>
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Expires At</label>
+              <input
+                type="datetime-local"
+                required
+                value={newExpiryAt}
+                min={formatDateTimeLocalValue(new Date(currentTime))}
+                onChange={(e) => setNewExpiryAt(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="allowMultiple" checked={allowMultiple} onChange={(e) => setAllowMultiple(e.target.checked)} className="w-4 h-4 text-amber-500 rounded" />
               <label htmlFor="allowMultiple" className="text-[11px] font-bold text-gray-600 cursor-pointer">Allow multiple choice selection</label>
             </div>
             <div className="flex items-end justify-end gap-2">
-              <button type="button" onClick={() => setIsCreating(false)} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold">Cancel</button>
+              <button type="button" onClick={() => {
+                resetPollForm();
+                setIsCreating(false);
+              }} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold">Cancel</button>
               <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
             </div>
           </form>
@@ -502,6 +569,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
           polls.map((poll) => {
             const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
             const isCreator = poll.creatorId === user?.id;
+            const pollIsExpired = poll.isExpired || getPollExpiryTimestamp(poll.expiresAt) <= currentTime;
 
             return (
               <div key={poll.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3 transition-all hover:scale-[1.01]">
@@ -513,6 +581,11 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                       </span>
                     </div>
                     <h3 className="text-gray-800 font-bold text-sm max-sm:text-xs leading-tight mt-1 break-all whitespace-normal">{poll.question}</h3>
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold ${pollIsExpired ? "text-red-500" : "text-gray-500"}`}>
+                        {pollIsExpired ? "Expired" : "Ends"} {formatExpiryLabel(poll.expiresAt)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -524,17 +597,17 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
                     return (
                       <div key={idx} className="relative group/opt">
                         <button
+                          disabled={pollIsExpired}
                           onClick={(e) => {
-                            handleVote(poll.id, idx);
+                            handleVote(poll, idx);
                             (e.currentTarget as HTMLButtonElement).blur();
                           }}
                           className={`w-full relative min-h-[42px] sm:min-h-[44px] flex flex-col rounded-xl border transition-all duration-300 ${
                             hasVotedThis 
                               ? "border-gray-200 bg-white" 
                               : "border-gray-100 bg-white hover:bg-gray-50 hover:border-gray-200"
-                          } outline-none focus:outline-none ring-0 focus:ring-0 active:scale-[0.98] select-none overflow-hidden`}
+                          } outline-none focus:outline-none ring-0 focus:ring-0 active:scale-[0.98] select-none overflow-hidden disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-100 disabled:opacity-75`}
                         >
-                          {/* Progress Bar - Shared Yellow Shade for all users */}
                           <div 
                             className={`absolute top-0 left-0 h-full transition-all duration-700 ease-out bg-amber-500/15`} 
                             style={{ width: `${percentage}%` }} 
@@ -566,7 +639,9 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
                 <div className="flex items-center justify-between pt-1">
                   <div className="text-[10px] font-bold italic">
-                    {poll.hasVoted ? (
+                    {pollIsExpired ? (
+                      <span className="text-red-500">POLL CLOSED</span>
+                    ) : poll.hasVoted ? (
                       <span className="text-amber-600">{poll.allowMultiple ? "CLICK AGAIN TO CHANGE VOTES" : "CLICK TO SWITCH VOTE"}</span>
                     ) : (
                       <span className="text-amber-400">CAST YOUR VOTE ABOVE</span>
@@ -597,7 +672,6 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
         <div ref={pollsEndRef} />
       </div>
 
-      {/* Floating Scroll Button */}
       {showScrollButton && !isCreating && (
         <button
           onClick={() => scrollToBottom("smooth")}

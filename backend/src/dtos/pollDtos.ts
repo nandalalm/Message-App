@@ -10,6 +10,8 @@ export interface PollDTO {
   question: string;
   options: PollOptionDTO[];
   allowMultiple: boolean;
+  expiresAt: string;
+  isExpired: boolean;
   hasVoted: boolean;
   votedOptionIndices: number[];
   voters: { userId: string; userName: string; optionIndex: number }[];
@@ -21,4 +23,5 @@ export interface CreatePollDTO {
   question: string;
   options: string[];
   allowMultiple: boolean;
+  expiresAt: string;
 }
