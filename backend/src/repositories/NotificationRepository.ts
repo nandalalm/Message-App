@@ -3,6 +3,7 @@ import { BaseRepository } from "./BaseRepository";
 import { MessageNotificationModel, PollNotificationModel, INotification } from "../models/notificationModel";
 import { IMessageNotificationRepository } from "../interfaces/Repositories/IMessageNotificationRepository";
 import { IPollNotificationRepository } from "../interfaces/Repositories/IPollNotificationRepository";
+import { FilterQuery } from "mongoose";
 
 @injectable()
 export class MessageNotificationRepository extends BaseRepository<INotification> implements IMessageNotificationRepository {
@@ -49,6 +50,36 @@ export class MessageNotificationRepository extends BaseRepository<INotification>
 export class PollNotificationRepository extends BaseRepository<INotification> implements IPollNotificationRepository {
   constructor() {
     super(PollNotificationModel);
+  }
+
+  async createOrGetByUserAndRelatedId(data: Partial<INotification>): Promise<INotification> {
+    if (!data.userId || !data.relatedId) {
+      return this.create(data);
+    }
+
+    const filter: FilterQuery<INotification> = {
+      userId: data.userId,
+      type: data.type,
+      relatedId: data.relatedId,
+    };
+
+    const notification = await this.model.findOneAndUpdate(
+      filter,
+      {
+        $setOnInsert: {
+          userId: data.userId,
+          type: data.type,
+          content: data.content,
+          relatedId: data.relatedId,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+      }
+    ).exec();
+
+    return notification;
   }
 
   async getByUserId(userId: string, limit: number, skip: number): Promise<INotification[]> {

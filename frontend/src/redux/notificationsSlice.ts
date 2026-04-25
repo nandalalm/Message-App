@@ -85,9 +85,11 @@ const notificationsSlice = createSlice({
     addIncomingNotification: (state, action: PayloadAction<NotificationItem>) => {
       const notification = action.payload;
       if (notification.type === "message") {
+        state.messageNotifications = state.messageNotifications.filter((item) => item.id !== notification.id);
         state.messageNotifications = [notification, ...state.messageNotifications].slice(0, 100);
         state.messageUnreadCount += 1;
       } else {
+        state.pollNotifications = state.pollNotifications.filter((item) => item.id !== notification.id);
         state.pollNotifications = [notification, ...state.pollNotifications].slice(0, 100);
         state.pollUnreadCount += 1;
       }

@@ -133,6 +133,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [newExpiryAt, setNewExpiryAt] = useState(getDefaultExpiryValue);
   const [includeNone, setIncludeNone] = useState(false);
+  const [isSubmittingPoll, setIsSubmittingPoll] = useState(false);
   const [activeVoterModal, setActiveVoterModal] = useState<Poll | null>(null);
   const [filter, setFilter] = useState<"all" | "myPolls">("all");
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -182,6 +183,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
     setAllowMultiple(false);
     setNewExpiryAt(getDefaultExpiryValue());
     setIncludeNone(false);
+    setIsSubmittingPoll(false);
   };
 
   useEffect(() => {
@@ -230,6 +232,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       setPolls(prev => [...prev, poll].slice(-100));
       setTimeout(() => scrollToBottom("smooth"), 100);
       if (poll.creatorId === user?.id) {
+        setIsSubmittingPoll(false);
         addToast("Poll created successfully!", "success");
       }
     };
@@ -255,6 +258,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       }));
     };
     const handleError = (data: { message: string }) => {
+      setIsSubmittingPoll(false);
       const isLimitError = data.message.includes("Daily poll limit");
       addToast(data.message, "error", isLimitError ? 3000 : 2000);
     };
@@ -308,7 +312,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
 
   const handleCreatePoll = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!socket || !user) return;
+    if (!socket || !user || isSubmittingPoll) return;
 
     const trimmedQuestion = newQuestion.trim();
     if (!trimmedQuestion) {
@@ -367,6 +371,7 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
       return;
     }
 
+    setIsSubmittingPoll(true);
     socket.emit("createPoll", {
       creatorId: user.id,
       creatorName: user.username,
@@ -543,8 +548,8 @@ const PollComponent: React.FC<PollProps> = ({ socket, onSwitch, showSwitch }) =>
               <button type="button" onClick={() => {
                 resetPollForm();
                 setIsCreating(false);
-              }} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200">Create</button>
+              }} disabled={isSubmittingPoll} className="px-4 py-2 text-gray-400 hover:bg-gray-100 rounded-lg text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+              <button type="submit" disabled={isSubmittingPoll} className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-amber-200 disabled:cursor-not-allowed disabled:opacity-60">{isSubmittingPoll ? "Creating..." : "Create"}</button>
             </div>
           </form>
         ) : isInitialLoading && polls.length === 0 ? (

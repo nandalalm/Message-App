@@ -26,13 +26,17 @@ export class NotificationService implements INotificationService {
   }
 
   async createNotification(data: CreateNotificationDTO): Promise<NotificationDTO> {
-    const repository = data.type === "message" ? this._messageRepository : this._pollRepository;
-    const notification = await repository.create({
+    const notificationData = {
       userId: new mongoose.Types.ObjectId(data.userId),
       type: data.type,
       content: data.content,
       relatedId: data.relatedId,
-    } as Partial<INotification>);
+    } as Partial<INotification>;
+
+    const notification = data.type === "message"
+      ? await this._messageRepository.create(notificationData)
+      : await this._pollRepository.createOrGetByUserAndRelatedId(notificationData);
+
     return this.mapToDTO(notification);
   }
 

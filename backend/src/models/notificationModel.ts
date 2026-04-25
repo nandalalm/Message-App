@@ -41,22 +41,37 @@ const NotificationSchema: Schema = new Schema(
   }
 );
 
-NotificationSchema.index({ userId: 1, createdAt: -1 });
+const MessageNotificationSchema = new Schema(NotificationSchema.obj, {
+  timestamps: true,
+  capped: { size: 1024 * 1024, max: 100 }
+});
+
+MessageNotificationSchema.index({ userId: 1, createdAt: -1 });
+
+const PollNotificationSchema = new Schema(NotificationSchema.obj, {
+  timestamps: true,
+  capped: { size: 1024 * 1024, max: 100 }
+});
+
+PollNotificationSchema.index({ userId: 1, createdAt: -1 });
+PollNotificationSchema.index(
+  { userId: 1, type: 1, relatedId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      relatedId: { $exists: true, $type: "string" }
+    }
+  }
+);
 
 export const MessageNotificationModel = mongoose.model<INotification>(
   "MessageNotification",
-  new Schema(NotificationSchema.obj, { 
-    timestamps: true,
-    capped: { size: 1024 * 1024, max: 100 } 
-  })
+  MessageNotificationSchema
 );
 
 export const PollNotificationModel = mongoose.model<INotification>(
   "PollNotification",
-  new Schema(NotificationSchema.obj, { 
-    timestamps: true,
-    capped: { size: 1024 * 1024, max: 100 } 
-  })
+  PollNotificationSchema
 );
 
 export default MessageNotificationModel;
