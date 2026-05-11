@@ -7,5 +7,6 @@ export enum HttpStatus {
   NOT_FOUND = 404,
   CONFLICT = 409,
   GONE = 410,
+  PAYLOAD_TOO_LARGE = 413,
   INTERNAL_SERVER_ERROR = 500,
 }

@@ -1,4 +1,7 @@
 export const TYPES = {
+  AuthController: Symbol.for("AuthController"),
+  ImageController: Symbol.for("ImageController"),
+  NotificationController: Symbol.for("NotificationController"),
   UserRepository: Symbol.for("UserRepository"),
   UserService: Symbol.for("UserService"),
   ImageRepository: Symbol.for("ImageRepository"),

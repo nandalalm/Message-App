@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { HttpStatus } from "../constants/httpStatus";
+import { Messages } from "../constants/messages";
+import { AppError } from "../utils/AppError";
 
 interface AuthenticatedUser {
   id: string;
@@ -19,15 +21,13 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
   const token = authHeader?.split(" ")[1];
 
   if (!token) {
-    res.status(HttpStatus.UNAUTHORIZED).json({ message: "Unauthorized" });
-    return;
+    return next(new AppError(Messages.UNAUTHORIZED, HttpStatus.UNAUTHORIZED));
   }
 
   try {
     const accessSecret = process.env.ACCESS_TOKEN_SECRET;
     if (!accessSecret) {
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: "Server configuration error" });
-      return;
+      return next(new AppError(Messages.SERVER_CONFIG_ERROR, HttpStatus.INTERNAL_SERVER_ERROR));
     }
     const decoded = jwt.verify(token, accessSecret) as JwtPayload & AuthenticatedUser;
     req.user = {
@@ -37,6 +37,6 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
     };
     next();
   } catch {
-    res.status(HttpStatus.FORBIDDEN).json({ message: "Token invalid or expired" });
+    next(new AppError(Messages.TOKEN_INVALID_OR_EXPIRED, HttpStatus.FORBIDDEN));
   }
 };

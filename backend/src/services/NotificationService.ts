@@ -7,6 +7,8 @@ import { TYPES } from "../config/types";
 import { NotificationDTO, CreateNotificationDTO, MuteSettingsDTO, UnreadCountsDTO } from "../dtos/notificationDtos";
 import { INotification } from "../models/notificationModel";
 import { Messages } from "../constants/messages";
+import { HttpStatus } from "../constants/httpStatus";
+import { AppError } from "../utils/AppError";
 import mongoose from "mongoose";
 
 @injectable()
@@ -79,7 +81,7 @@ export class NotificationService implements INotificationService {
 
   async toggleMute(userId: string, type: string): Promise<MuteSettingsDTO> {
     const user = await this._userRepository.findById(userId);
-    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+    if (!user) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     const muted = user.mutedNotificationTypes ?? [];
     const isMuted = muted.includes(type);
     const updated = isMuted ? muted.filter((t) => t !== type) : [...muted, type];

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
+import { inject, injectable } from "inversify";
 dotenv.config();
 import { IUserService } from "../interfaces/services/IAuthService";
 import { IUserRepository } from "../interfaces/Repositories/IUserRepository";
@@ -12,14 +13,19 @@ import { createAccessToken, createRefreshToken } from "../utils/jwt";
 import { Messages } from "../constants/messages";
 import { IImageService } from "../interfaces/services/IImageService";
 import { generateResetToken, sendPasswordResetEmail } from "../utils/passwordReset";
+import { TYPES } from "../config/types";
 
 import { AppError } from "../utils/AppError";
 
+@injectable()
 export class UserService implements IUserService {
   private _userRepository: IUserRepository;
   private _imageService: IImageService;
 
-  constructor(userRepository: IUserRepository, imageService: IImageService) {
+  constructor(
+    @inject(TYPES.UserRepository) userRepository: IUserRepository,
+    @inject(TYPES.ImageService) imageService: IImageService
+  ) {
     this._userRepository = userRepository;
     this._imageService = imageService;
   }
@@ -65,7 +71,7 @@ export class UserService implements IUserService {
     const tempUserData = JSON.parse(tempUserDataStr);
 
     const existing = await this._userRepository.findByEmail(email);
-    if (existing) throw new Error(Messages.USER_EXISTS);
+    if (existing) throw new AppError(Messages.USER_EXISTS, HttpStatus.CONFLICT);
 
     await this._userRepository.createUser(tempUserData as IUser);
 
@@ -73,7 +79,7 @@ export class UserService implements IUserService {
 
     const user = await this._userRepository.findByEmail(email);
     if (!user) {
-      throw new Error(Messages.USER_CREATION_FAILED);
+      throw new AppError(Messages.USER_CREATION_FAILED, HttpStatus.INTERNAL_SERVER_ERROR, false);
     }
 
     let profileImageUrl = user.profileImageUrl;
@@ -102,7 +108,7 @@ export class UserService implements IUserService {
 
   async resendOTP(email: string): Promise<void> {
     const tempUserDataStr = await getOTP(`tempUser:${email}`);
-    if (!tempUserDataStr) throw new Error(Messages.REGISTRATION_SESSION_EXPIRED);
+    if (!tempUserDataStr) throw new AppError(Messages.REGISTRATION_SESSION_EXPIRED, HttpStatus.GONE);
 
     const otp = generateOTP();
     await setOTP(`otp:${email}`, otp, 60);
@@ -135,7 +141,7 @@ export class UserService implements IUserService {
 
   async getProfile(userId: string): Promise<UserDTO> {
     const user = await this._userRepository.findById(userId);
-    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+    if (!user) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     let profileImageUrl = user.profileImageUrl;
     if (user.profileImageKey) {
@@ -157,7 +163,7 @@ export class UserService implements IUserService {
 
   private async uploadToS3(userId: string, file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
     const result = await this._imageService.createImagesFromFiles(userId, [{ file, fileName, contentType }]);
-    if (result.length === 0) throw new Error(Messages.UPLOAD_FAILED);
+    if (result.length === 0) throw new AppError(Messages.UPLOAD_FAILED, HttpStatus.INTERNAL_SERVER_ERROR, false);
     return { url: result[0].imageUrl, key: result[0].s3Key };
   }
 
@@ -171,7 +177,7 @@ export class UserService implements IUserService {
 
   async updateProfileImage(userId: string, file: { buffer: Buffer; originalname: string; mimetype: string }): Promise<UserDTO> {
     const user = await this._userRepository.findById(userId);
-    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+    if (!user) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     if (user.profileImageKey) {
       await this.deleteFromS3(user.profileImageKey);
@@ -179,7 +185,7 @@ export class UserService implements IUserService {
 
     const { url, key } = await this.uploadToS3(userId, file.buffer, file.originalname, file.mimetype);
     const updated = await this._userRepository.updateProfileImage(userId, url, key);
-    if (!updated) throw new Error(Messages.USER_NOT_FOUND);
+    if (!updated) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     let profileImageUrl = updated.profileImageUrl;
     if (updated.profileImageKey) {
@@ -200,14 +206,14 @@ export class UserService implements IUserService {
 
   async deleteProfileImage(userId: string): Promise<UserDTO> {
     const user = await this._userRepository.findById(userId);
-    if (!user) throw new Error(Messages.USER_NOT_FOUND);
+    if (!user) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     if (user.profileImageKey) {
       await this.deleteFromS3(user.profileImageKey);
     }
 
     const updated = await this._userRepository.clearProfileImage(userId);
-    if (!updated) throw new Error(Messages.USER_NOT_FOUND);
+    if (!updated) throw new AppError(Messages.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     return {
       id: updated.id,
       username: updated.username,
@@ -233,7 +239,7 @@ export class UserService implements IUserService {
   async resetPassword(token: string, newPassword: string): Promise<void> {
     const email = await getOTP(`reset:${token}`);
     if (!email) {
-      throw new Error(Messages.INVALID_RESET_TOKEN);
+      throw new AppError(Messages.INVALID_RESET_TOKEN, HttpStatus.BAD_REQUEST);
     }
     const hash = await bcrypt.hash(newPassword, 10);
     await this._userRepository.updatePasswordByEmail(email, hash);

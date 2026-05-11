@@ -6,6 +6,8 @@ import { TYPES } from "../config/types";
 import { MessageDTO, CreateMessageDTO } from "../dtos/messageDtos";
 import { IMessage } from "../models/messageModel";
 import { Messages } from "../constants/messages";
+import { HttpStatus } from "../constants/httpStatus";
+import { AppError } from "../utils/AppError";
 import mongoose from "mongoose";
 
 @injectable()
@@ -35,10 +37,10 @@ export class MessageService implements IMessageService {
 
   async editMessage(userId: string, messageId: string, content: string): Promise<MessageDTO> {
     const message = await this._messageRepository.findById(messageId);
-    if (!message) throw new Error(Messages.MESSAGE_NOT_FOUND);
-    if (message.senderId.toString() !== userId) throw new Error(Messages.UNAUTHORIZED_EDIT);
-    if (message.imageUrl) throw new Error(Messages.IMAGE_EDIT_NOT_ALLOWED);
-    if (message.editCount >= 1) throw new Error(Messages.EDIT_LIMIT_REACHED);
+    if (!message) throw new AppError(Messages.MESSAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
+    if (message.senderId.toString() !== userId) throw new AppError(Messages.UNAUTHORIZED_EDIT, HttpStatus.FORBIDDEN);
+    if (message.imageUrl) throw new AppError(Messages.IMAGE_EDIT_NOT_ALLOWED, HttpStatus.BAD_REQUEST);
+    if (message.editCount >= 1) throw new AppError(Messages.EDIT_LIMIT_REACHED, HttpStatus.BAD_REQUEST);
 
     message.content = content;
     message.isEdited = true;
@@ -50,8 +52,8 @@ export class MessageService implements IMessageService {
 
   async deleteMessage(userId: string, messageId: string): Promise<MessageDTO> {
     const message = await this._messageRepository.findById(messageId);
-    if (!message) throw new Error(Messages.MESSAGE_NOT_FOUND);
-    if (message.senderId.toString() !== userId) throw new Error(Messages.UNAUTHORIZED_DELETE);
+    if (!message) throw new AppError(Messages.MESSAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
+    if (message.senderId.toString() !== userId) throw new AppError(Messages.UNAUTHORIZED_DELETE, HttpStatus.FORBIDDEN);
 
     message.isDeleted = true;
     message.content = Messages.MESSAGE_DELETED_CONTENT;

@@ -1,15 +1,12 @@
 import { Router } from "express";
 import multer from "multer";
 import { authMiddleware } from "../middleware/authMiddleware";
-import {
-  createImages,
-  uploadImages,
-  getUserImages,
-  updateImage,
-  deleteImage,
-  serveImage,
-  getSignedUrl
-} from "../controllers/imageController";
+import { container } from "../config/container";
+import { TYPES } from "../config/types";
+import { ImageController } from "../controllers/imageController";
+import { AppError } from "../utils/AppError";
+import { Messages } from "../constants/messages";
+import { HttpStatus } from "../constants/httpStatus";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -20,19 +17,20 @@ const upload = multer({
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new AppError(Messages.INVALID_FILE_TYPE, HttpStatus.BAD_REQUEST));
     }
   },
 });
 
 const router = Router();
+const imageController = container.get<ImageController>(TYPES.ImageController);
 
-router.post("/upload-files", authMiddleware, upload.array('images'), uploadImages);
-router.post("/create-from-urls", authMiddleware, createImages);
-router.get("/my-images", authMiddleware, getUserImages);
-router.get("/serve/:imageId", serveImage);
-router.get("/signed-url/:imageId", authMiddleware, getSignedUrl);
-router.put("/update/:imageId", authMiddleware, upload.single('image'), updateImage);
-router.delete("/delete/:imageId", authMiddleware, deleteImage);
+router.post("/upload-files", authMiddleware, upload.array('images'), imageController.uploadImages);
+router.post("/create-from-urls", authMiddleware, imageController.createImages);
+router.get("/my-images", authMiddleware, imageController.getUserImages);
+router.get("/serve/:imageId", imageController.serveImage);
+router.get("/signed-url/:imageId", authMiddleware, imageController.getSignedUrl);
+router.put("/update/:imageId", authMiddleware, upload.single('image'), imageController.updateImage);
+router.delete("/delete/:imageId", authMiddleware, imageController.deleteImage);
 
 export default router;

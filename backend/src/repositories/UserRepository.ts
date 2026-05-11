@@ -1,7 +1,9 @@
+import { injectable } from "inversify";
 import { BaseRepository } from "./BaseRepository";
 import { IUserRepository } from "../interfaces/Repositories/IUserRepository"
 import { IUser, UserModel } from "../models/userModel";
 
+@injectable()
 export class UserRepository extends BaseRepository<IUser> implements IUserRepository {
   constructor() {
     super(UserModel);

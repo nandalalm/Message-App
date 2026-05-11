@@ -1,7 +1,9 @@
+import { injectable } from "inversify";
 import { BaseRepository } from "./BaseRepository";
 import { IImageRepository } from "../interfaces/Repositories/IImageRepository";
 import { IImage, ImageModel } from "../models/imageModel";
 
+@injectable()
 export class ImageRepository extends BaseRepository<IImage> implements IImageRepository {
   constructor() {
     super(ImageModel);

@@ -1,16 +1,21 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { inject, injectable } from "inversify";
 import { IImageService, ImageFileData, ImageUploadData, PaginatedImagesResult } from "../interfaces/services/IImageService";
 import { IImageRepository } from "../interfaces/Repositories/IImageRepository";
 import { IImage } from "../models/imageModel";
 import { logError } from "../middleware/loggerMiddleware";
 import { Messages } from "../constants/messages";
+import { TYPES } from "../config/types";
+import { HttpStatus } from "../constants/httpStatus";
+import { AppError } from "../utils/AppError";
 
+@injectable()
 export class ImageService implements IImageService {
   private _imageRepository: IImageRepository;
   private _s3Client: S3Client;
 
-  constructor(imageRepository: IImageRepository) {
+  constructor(@inject(TYPES.ImageRepository) imageRepository: IImageRepository) {
     this._imageRepository = imageRepository;
 
     const requiredEnvVars = {
@@ -37,7 +42,7 @@ export class ImageService implements IImageService {
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
     if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error(Messages.AWS_S3_CONFIG_MISSING);
+      throw new AppError(Messages.AWS_S3_CONFIG_MISSING, HttpStatus.INTERNAL_SERVER_ERROR, false);
     }
 
     this._s3Client = new S3Client({
@@ -52,7 +57,7 @@ export class ImageService implements IImageService {
   private async uploadToS3(file: Buffer, fileName: string, contentType: string): Promise<{ url: string; key: string }> {
     try {
       if (!process.env.AWS_BUCKET_NAME) {
-        throw new Error(Messages.S3_BUCKET_NOT_CONFIGURED);
+        throw new AppError(Messages.S3_BUCKET_NOT_CONFIGURED, HttpStatus.INTERNAL_SERVER_ERROR, false);
       }
 
       const timestamp = Date.now();
@@ -73,7 +78,7 @@ export class ImageService implements IImageService {
       return { url, key };
     } catch (error) {
       console.error(Messages.S3_UPLOAD_FAILED + ':', error);
-      throw new Error(Messages.S3_UPLOAD_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
+      throw new AppError(Messages.S3_UPLOAD_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'), HttpStatus.INTERNAL_SERVER_ERROR, false);
     }
   }
 
@@ -98,7 +103,7 @@ export class ImageService implements IImageService {
         } catch (error) {
           console.error(Messages.IMAGE_CREATE_FAILED.replace('{index}', (i + 1).toString()) + ':', error);
           logError(error as Error, undefined, { userId, fileData: { fileName: fileData.fileName } });
-          throw new Error(Messages.IMAGE_CREATE_ERROR.replace('{index}', (i + 1).toString()).replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
+          throw new AppError(Messages.IMAGE_CREATE_ERROR.replace('{index}', (i + 1).toString()).replace('{error}', error instanceof Error ? error.message : 'Unknown error'), HttpStatus.INTERNAL_SERVER_ERROR, false);
         }
       }
 
@@ -123,7 +128,7 @@ export class ImageService implements IImageService {
       } catch (error) {
         console.error(Messages.IMAGE_RECORD_CREATE_FAILED + ':', error);
         logError(error as Error, undefined, { userId, imageData: { imageUrl: imageData.imageUrl } });
-        throw new Error(Messages.IMAGE_RECORD_CREATE_FAILED);
+        throw new AppError(Messages.IMAGE_RECORD_CREATE_FAILED, HttpStatus.INTERNAL_SERVER_ERROR, false);
       }
     }
 
@@ -144,7 +149,7 @@ export class ImageService implements IImageService {
   async updateImage(userId: string, imageId: string, file?: ImageFileData): Promise<IImage | null> {
     const existingImage = await this._imageRepository.findByUserIdAndId(userId, imageId);
     if (!existingImage) {
-      throw new Error(Messages.IMAGE_NOT_FOUND);
+      throw new AppError(Messages.IMAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     const updateData: Partial<IImage> = {};
@@ -164,7 +169,7 @@ export class ImageService implements IImageService {
   async deleteImage(userId: string, imageId: string): Promise<boolean> {
     const existingImage = await this._imageRepository.findByUserIdAndId(userId, imageId);
     if (!existingImage) {
-      throw new Error(Messages.IMAGE_NOT_FOUND);
+      throw new AppError(Messages.IMAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     try {
@@ -183,7 +188,7 @@ export class ImageService implements IImageService {
   async generateSignedUrl(s3Key: string, expiresIn: number = 120): Promise<string> {
     try {
       if (!process.env.AWS_BUCKET_NAME) {
-        throw new Error(Messages.S3_BUCKET_NOT_CONFIGURED);
+        throw new AppError(Messages.S3_BUCKET_NOT_CONFIGURED, HttpStatus.INTERNAL_SERVER_ERROR, false);
       }
 
       const command = new GetObjectCommand({
@@ -195,7 +200,7 @@ export class ImageService implements IImageService {
       return signedUrl;
     } catch (error) {
       console.error(Messages.SIGNED_URL_GEN_FAILED, error);
-      throw new Error(Messages.SIGNED_URL_GEN_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
+      throw new AppError(Messages.SIGNED_URL_GEN_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'), HttpStatus.INTERNAL_SERVER_ERROR, false);
     }
   }
 
@@ -217,7 +222,7 @@ export class ImageService implements IImageService {
   async deleteByKey(s3Key: string): Promise<void> {
     try {
       if (!process.env.AWS_BUCKET_NAME) {
-        throw new Error(Messages.S3_BUCKET_NOT_CONFIGURED);
+        throw new AppError(Messages.S3_BUCKET_NOT_CONFIGURED, HttpStatus.INTERNAL_SERVER_ERROR, false);
       }
 
       const command = new DeleteObjectCommand({
@@ -228,7 +233,7 @@ export class ImageService implements IImageService {
       await this._s3Client.send(command);
     } catch (error) {
       console.error(`${Messages.S3_OBJECT_DELETE_FAILED} ${s3Key}:`, error);
-      throw new Error(Messages.S3_OBJECT_DELETE_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'));
+      throw new AppError(Messages.S3_OBJECT_DELETE_ERROR.replace('{error}', error instanceof Error ? error.message : 'Unknown error'), HttpStatus.INTERNAL_SERVER_ERROR, false);
     }
   }
 

@@ -1,18 +1,21 @@
 import { Router } from "express";
-import { register, verifyOtp, resendOtp, login, refreshToken, getHome, logout, forgotPassword, resetPassword, checkUsername } from "../controllers/authController";
 import { authMiddleware } from "../middleware/authMiddleware";
+import { container } from "../config/container";
+import { TYPES } from "../config/types";
+import { AuthController } from "../controllers/authController";
 
 const router = Router();
+const authController = container.get<AuthController>(TYPES.AuthController);
 
-router.post("/register", register);
-router.post("/check-username", checkUsername);
-router.post("/verify-otp", verifyOtp);
-router.post("/resend-otp", resendOtp);
-router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
-router.get("/refresh-token", refreshToken);
-router.get("/home", authMiddleware, getHome);
-router.post("/logout", logout);
+router.post("/register", authController.register);
+router.post("/check-username", authController.checkUsername);
+router.post("/verify-otp", authController.verifyOtp);
+router.post("/resend-otp", authController.resendOtp);
+router.post("/login", authController.login);
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password", authController.resetPassword);
+router.get("/refresh-token", authController.refreshToken);
+router.get("/home", authMiddleware, authController.getHome);
+router.post("/logout", authController.logout);
 
 export default router;

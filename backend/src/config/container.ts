@@ -20,46 +20,37 @@ import { IPollNotificationRepository } from "../interfaces/Repositories/IPollNot
 import { INotificationService } from "../interfaces/services/INotificationService";
 import { MessageNotificationRepository, PollNotificationRepository } from "../repositories/NotificationRepository";
 import { NotificationService } from "../services/NotificationService";
+import { AuthController } from "../controllers/authController";
+import { ImageController } from "../controllers/imageController";
+import { NotificationController } from "../controllers/NotificationController";
 import { TYPES } from "./types";
 
 export const container = new Container();
 
-container.bind<IUserRepository>(TYPES.UserRepository).toConstantValue(new UserRepository());
+container.bind<IUserRepository>(TYPES.UserRepository).to(UserRepository).inSingletonScope();
 
-container.bind<IUserService>(TYPES.UserService).toDynamicValue(() => {
-  const userRepo = container.get<IUserRepository>(TYPES.UserRepository);
-  const imageService = container.get<IImageService>(TYPES.ImageService);
-  return new UserService(userRepo, imageService);
-});
+container.bind<IUserService>(TYPES.UserService).to(UserService);
 
-container.bind<IImageRepository>(TYPES.ImageRepository).toConstantValue(new ImageRepository());
+container.bind<IImageRepository>(TYPES.ImageRepository).to(ImageRepository).inSingletonScope();
 
-container.bind<IImageService>(TYPES.ImageService).toDynamicValue(() => {
-  const imageRepo = container.get<IImageRepository>(TYPES.ImageRepository);
-  return new ImageService(imageRepo);
-});
+container.bind<IImageService>(TYPES.ImageService).to(ImageService);
 
-container.bind<IMessageRepository>(TYPES.MessageRepository).toConstantValue(new MessageRepository());
+container.bind<IMessageRepository>(TYPES.MessageRepository).to(MessageRepository).inSingletonScope();
 
-container.bind<IMessageService>(TYPES.MessageService).toDynamicValue(() => {
-  const messageRepo = container.get<IMessageRepository>(TYPES.MessageRepository);
-  const imageService = container.get<IImageService>(TYPES.ImageService);
-  return new MessageService(messageRepo, imageService);
-});
+container.bind<IMessageService>(TYPES.MessageService).to(MessageService);
 
-container.bind<IPollRepository>(TYPES.PollRepository).toConstantValue(new PollRepository());
+container.bind<IPollRepository>(TYPES.PollRepository).to(PollRepository).inSingletonScope();
 
-container.bind<IPollService>(TYPES.PollService).toDynamicValue(() => {
-  const pollRepo = container.get<IPollRepository>(TYPES.PollRepository);
-  return new PollService(pollRepo);
-});
+container.bind<IPollService>(TYPES.PollService).to(PollService);
 
-container.bind<IMessageNotificationRepository>(TYPES.MessageNotificationRepository).toConstantValue(new MessageNotificationRepository());
-container.bind<IPollNotificationRepository>(TYPES.PollNotificationRepository).toConstantValue(new PollNotificationRepository());
+container.bind<IMessageNotificationRepository>(TYPES.MessageNotificationRepository).to(MessageNotificationRepository).inSingletonScope();
 
-container.bind<INotificationService>(TYPES.NotificationService).toDynamicValue(() => {
-  const messageNotifRepo = container.get<IMessageNotificationRepository>(TYPES.MessageNotificationRepository);
-  const pollNotifRepo = container.get<IPollNotificationRepository>(TYPES.PollNotificationRepository);
-  const userRepo = container.get<IUserRepository>(TYPES.UserRepository);
-  return new NotificationService(messageNotifRepo, pollNotifRepo, userRepo);
-});
+container.bind<IPollNotificationRepository>(TYPES.PollNotificationRepository).to(PollNotificationRepository).inSingletonScope();
+
+container.bind<INotificationService>(TYPES.NotificationService).to(NotificationService);
+
+container.bind<AuthController>(TYPES.AuthController).to(AuthController).inSingletonScope();
+
+container.bind<ImageController>(TYPES.ImageController).to(ImageController).inSingletonScope();
+
+container.bind<NotificationController>(TYPES.NotificationController).to(NotificationController).inSingletonScope();
